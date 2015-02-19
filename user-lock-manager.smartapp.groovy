@@ -52,7 +52,7 @@ def setupPage() {
     section {
       input "userName", "text", title: "Name for User", required: true
       input "userSlot", "number", title: "User Slot (From 1 to 30) ", required: true
-      input "userCode", "number", title: "Code (4 to 8 digits) or Blank to Delete"
+      input "userCode", "number", title: "Code (4 to 8 digits) or Blank to Delete", required: false
     }
   }
 }
