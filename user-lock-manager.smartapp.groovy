@@ -27,18 +27,18 @@ def rootPage() {
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
 
     section("Which Locks?") {
-      input "locks","capability.lock", title: "Locks", required: true, multiple: true, submitOnChange: true
+      input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
     }
 
     if (locks) {
       section {
-        href(name: "toSetupPage", title: "Code Setup", page: "setupPage", state: setupHrefDescription() ? "complete" : "", description: setupHrefDescription())
+        href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupHrefDescription(), state: setupHrefDescription() ? "complete" : "")
       }
       section {
-        href(name: "toNotificationPage", page: "notificationPage", title: "Set Notifications", description: "", state: "")
+        href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: "", state: "")
       }
       section {
-        href(name: "toSchedulingPage", page: "schedulingPage", title: "Access Schedule (Optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
+        href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
       }
       section {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
@@ -48,28 +48,29 @@ def rootPage() {
 }
 
 def setupPage() {
-  dynamicPage(name:"setupPage", title:"User Details") {
+  dynamicPage(name:"setupPage", title:"User Settings") {
     section {
-      input "userName", "text", title: "Name for User", required: true
-      input "userSlot", "number", title: "User Slot (From 1 to 30) ", required: true
-      input "userCode", "number", title: "Code (4 to 8 digits) or Blank to Delete", required: false
+      input(name: "userName", type: "text", title: "Name for User", required: true)
+      input(name: "userSlot", type: "number", title: "User Slot (From 1 to 30) ", required: true)
+      input(name: "userCode", type: "number", title: "Code (4 to 8 digits) or Blank to Delete", required: false)
+      input(name: "burnCode", title: "Burn after use?", type: "bool", required: false)
     }
   }
 }
 def notificationPage() {
-  dynamicPage(name: "notificationPage", title: "Notification Rules") {
+  dynamicPage(name: "notificationPage", title: "Notification Settings") {
 
     section {
       input(name: "phone", type: "phone", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
       input(name: "notification", type: "bool", title: "Send A Push Notification", description: "Notification", required: false, submitOnChange: true)
       if (phone != null || notification) {
-        input(name: "notifyAccess", title: "Notify when user enters code", type: "bool", defaultValue: true, required: false)
-        input(name: "notifyAccessStart", title: "Notify when granting access", type: "bool", required: false)
-        input(name: "notifyAccessEnd", title: "Notify when revoking access", type: "bool", required: false)
+        input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
+        input(name: "notifyAccessStart", title: "when granting access", type: "bool", required: false)
+        input(name: "notifyAccessEnd", title: "when revoking access", type: "bool", required: false)
       }
     }
 
-    section("Only During These Times (Optional)") {
+    section("Only During These Times (optional)") {
       input(name: "notificationStartTime", type: "time", title: "Notify Starting At This Time", description: null, required: false)
       input(name: "notificationEndTime", type: "time", title: "Notify Ending At This Time", description: null, required: false)
     }
@@ -103,7 +104,15 @@ public humanReadableEndDate() {
 }
 
 def setupHrefDescription() {
-  def title = "User Access Settings for ${userName} on slot ${userSlot}"
+  def title = ''
+  if (userCode && userSlot) {
+    title = "User ${userName} on slot ${userSlot}."
+    if(burnCode) {
+      title += ' Burning after each use.'
+    }
+  } else {
+    return null
+  }
   return title
 }
 
@@ -239,15 +248,11 @@ def codereturn(evt) {
   def codenumber = evt.data.replaceAll("\\D+","");
   if (evt.value == Integer.toString(userSlot)) {
     if (codenumber == "") {
-        if (notifyAccessStart) {
-          def message = "User ${userName} in user slot ${evt.value} code is not set or was deleted on ${evt.displayName}"
-          send(message)
-        }
+      def message = "${userName} no longer has access to ${evt.displayName}"
+      send(message)
     } else {
-      if (notifyAccessEnd) {
-        def message = "Code for user ${userName} in user slot ${evt.value} was set to ${codenumber} on ${evt.displayName}"
-        send(message)
-      }
+      def message = "${userName} now has access to ${evt.displayName}"
+      send(message)
     }
   }
 }
@@ -255,8 +260,12 @@ def codereturn(evt) {
 def codeUsed(evt) {
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
-    def message = "${evt.displayName} was unlocked by ${userName} in user slot ${codeData.usedCode}"
-    if(codeData.usedCode == user) {
+    def message = "${evt.displayName} was unlocked by ${userName}"
+    if(codeData.usedCode == userSlot) {
+      if(burnCode) {
+        revokeAccess()
+        message += ".  Now burning code."
+      }
       send(message)
     }
   }
@@ -287,7 +296,7 @@ private send(msg) {
   }
 }
 private sendMessage(msg) {
-  if (notificationPush) {
+  if (notification) {
     sendPush(msg)
   }
   if (phone) {
