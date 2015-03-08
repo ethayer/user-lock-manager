@@ -21,6 +21,7 @@ definition(
   page(name: "setupPage")
   page(name: "userPage")
   page(name: "notificationPage")
+  page(name: "onUnlock")
   page(name: "schedulingPage")
 }
 
@@ -34,12 +35,9 @@ def rootPage() {
     if (locks) {
       section {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage")
-      }
-      section {
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: "", state: "")
-      }
-      section {
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
+        href(name: "toOnUnlockPage", page: "onUnlock", title: "Actions after Unlock")
       }
       section {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
@@ -117,6 +115,22 @@ def schedulingPage() {
     section {
       input(name: "startTime", type: "time", title: "Allow Access At This Time", description: null, required: false)
       input(name: "endTime", type: "time", title: "Deny Access At This Time", description: null, required: false)
+    }
+  }
+}
+
+
+def onUnlock() {
+  dynamicPage(name:"onUnlock", title:"Initiate Actions") {
+    section("Actions") {
+      def phrases = location.helloHome?.getPhrases()*.label
+      if (phrases) {
+        phrases.sort()
+        input name: "homePhrases", type: "enum", title: "Home Mode Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+        if (homePhrases) {
+          input name: "manualUnlock", title: "Initiate phrase on manual unlock also?", type: "bool", defaultValue: false, refreshAfterSelection: true
+        }
+      }
     }
   }
 }
@@ -234,6 +248,9 @@ private initialize() {
   subscribe(app, appTouch)
   subscribe(locks, "codeReport", codereturn)
   subscribe(locks, "lock", codeUsed)
+  if (homePhrases) {
+    subscribe(locks, "lock", performActions)
+  }
 }
 
 def locationHandler(evt) {
@@ -344,6 +361,31 @@ def grantAccess() {
     } else {
       revokeAccess(userSlot)
     }
+  }
+}
+
+def performActions(evt) {
+  def message = ""
+  if(evt.value == "unlocked" && evt.data) {
+    def codeData = new JsonSlurper().parseText(evt.data)
+    if(userSlotArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
+      location.helloHome.execute(settings.homePhrases)
+    }
+  }
+}
+
+def isManualUnlock(codeData) {
+  // check to see if the user wants this
+  if (manualUnlock) {
+    if ((codeData.usedCode == "") || (codeData.usedCode == null)) {
+      // no code used on unlock!
+      return true
+    } else {
+      // probably a code we're not dealing with here
+      return false
+    }
+  } else {
+    return false
   }
 }
 

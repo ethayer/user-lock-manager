@@ -8,12 +8,9 @@ Welcome to Lock Manager!
 * Delete codes after they are used*.
 * Optionally Schedule Users so that they only have access during certain times, modes, or days of the week.
 * Decide which notifications to receive in the event that the locks are too chatty.
+* When a code is entered, preform Hello Home Actions
 
 \* Code is burned once per scheduled period.  If a new cycle starts, that code will be active once again.  If no schedule is created, the code will only work once.
-
-###Planned:
-* Actions after user enters codes, such as turning on/off appliances.
-* Auto-unlock other locks after user enters codes.
 
 ##How to use:
 1. Install the app via the SmartThings developer IDE.  Copy all code from the .groovy file on this repository.
