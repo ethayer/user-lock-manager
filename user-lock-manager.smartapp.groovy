@@ -338,7 +338,7 @@ def codeUsed(evt) {
     def codeData = new JsonSlurper().parseText(evt.data)
 
     if(userSlotArray().contains(codeData.usedCode)) {
-      def unlockUserName = settings."userName${codeData.usedCode}"
+      def unlockUserName = usedUserName(codeData.usedCode)
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       if(settings."burnCode${codeData.usedCode}") {
         revokeAccess(codeData.usedCode)
