@@ -18,6 +18,11 @@ Welcome to Lock Manager!
 1. Navigate to My Apps on your smart device.  Follow the prompts on your new app.
 1. When complete, either press the app icon to activate the code, or allow the schedule to run.  Pressing the app button outside of the set schedule will still allow the user access!
 
+##Confirmed Locks:
+* Kwikset 910, 914
+* Yale Security YRL-220-ZW-619
+* Others?
+
 USE AT YOUR OWN RISK
 ---------------------
 It is possible that a user code deletion could fail.  Do not give door codes to people that you don't want access to your home or office, and watch notifications carefully.
