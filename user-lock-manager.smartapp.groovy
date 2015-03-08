@@ -334,7 +334,6 @@ def usedUserName(usedSlot) {
 }
 
 def codeUsed(evt) {
-  log.debug 'codeUsed ran'
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
 
@@ -367,7 +366,6 @@ def grantAccess() {
 
 def performActions(evt) {
   def message = ""
-  log.debug 'performActions ran with ${evt}'
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(userSlotArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
