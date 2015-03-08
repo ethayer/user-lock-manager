@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager2
+ *  User Lock Manager v1.2
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -49,9 +49,9 @@ def rootPage() {
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
     section("How many Users? (1-30)?") {
-      input name: "maxUsers", title: "Number of users", type: "number", required: true, multiple: false,  refreshAfterSelection: true
+      input name: "maxUsers", title: "Number of users", type: "number", required: true, multiple: false, refreshAfterSelection: true
     }
-    section("User Settings") {
+    section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
         href(name: "toUserPage", page: "userPage", params: [number: i], description: userHrefDescription(i), title: userHrefTitle(i))
       }
@@ -69,7 +69,7 @@ def userPage(params) {
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
     }
     section {
-      href(name: "toSetupPage", title: "User Settings", page: "setupPage")
+      href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
     }
   }
 }
