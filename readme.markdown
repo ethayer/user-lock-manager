@@ -2,7 +2,8 @@ Welcome to Lock Manager!
 =========================
 
 ###Features:
-* Assign Codes to Users.
+* Assign Codes to Multiple Users.
+* Manage Multiple Locks.
 * Be notified when a user uses their code.
 * Delete codes after they are used*.
 * Optionally Schedule Users so that they only have access during certain times, modes, or days of the week.

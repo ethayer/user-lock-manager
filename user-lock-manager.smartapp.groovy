@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager
+ *  User Lock Manager2
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -19,6 +19,7 @@ definition(
  preferences {
   page(name: "rootPage")
   page(name: "setupPage")
+  page(name: "userPage")
   page(name: "notificationPage")
   page(name: "schedulingPage")
 }
@@ -32,7 +33,7 @@ def rootPage() {
 
     if (locks) {
       section {
-        href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupHrefDescription(), state: setupHrefDescription() ? "complete" : "")
+        href(name: "toSetupPage", title: "User Settings", page: "setupPage")
       }
       section {
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: "", state: "")
@@ -49,14 +50,40 @@ def rootPage() {
 
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
-    section {
-      input(name: "userName", type: "text", title: "Name for User", required: true)
-      input(name: "userSlot", type: "number", title: "User Slot (From 1 to 30) ", required: true)
-      input(name: "userCode", type: "number", title: "Code (4 to 8 digits) or Blank to Delete", required: false)
-      input(name: "burnCode", title: "Burn after use?", type: "bool", required: false)
+    section("How many Users? (1-30)?") {
+      input name: "maxUsers", title: "Number of users", type: "number", required: true, multiple: false,  refreshAfterSelection: true
+    }
+    section("User Settings") {
+      for (int i = 1; i <= settings.maxUsers; i++) {
+        href(name: "toUserPage", page: "userPage", params: [number: i], description: userHrefDescription(i), title: userHrefTitle(i))
+      }
     }
   }
 }
+
+def userPage(params) {
+  dynamicPage(name:"setupPage", title:"User Settings") {
+    def i = params.number
+    section("Code #${i}") {
+      input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
+      input(name: "userCode${i}", type: "number", title: "Code (4 to 8 digits) or Blank to Delete", required: false, defaultValue: settings."userCode${i}")
+      input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
+      input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
+    }
+    section {
+      href(name: "toSetupPage", title: "User Settings", page: "setupPage")
+    }
+  }
+}
+
+def preSlectedCode(i) {
+  if (settings."userSlot${i}" != null) {
+    return settings."userSlot${i}"
+  } else {
+    return i
+  }
+}
+
 def notificationPage() {
   dynamicPage(name: "notificationPage", title: "Notification Settings") {
 
@@ -103,17 +130,27 @@ public humanReadableEndDate() {
   new Date().parse(smartThingsDateFormat(), endTime).format("h:mm a", timeZone(endTime))
 }
 
-def setupHrefDescription() {
-  def title = ''
-  if (userCode && userSlot) {
-    title = "User ${userName} on slot ${userSlot}."
-    if(burnCode) {
-      title += ' Burning after each use.'
-    }
-  } else {
-    return null
+def userHrefTitle(i) {
+  def title = "User ${i}"
+  if (settings."userName${i}") {
+    title = settings."userName${i}"
   }
   return title
+}
+def userHrefDescription(i) {
+  def uc = settings."userCode${i}"
+  def us = settings."userSlot${i}"
+  def description = ""
+  if (us != null) {
+    description += "Slot: ${us}"
+  }
+  if (uc != null) {
+    description += " // ${uc}"
+    if(settings."burnCode${i}") {
+      description += ' [Single Use]'
+    }
+  }
+  return description
 }
 
 def fancyDeviceString(devices = []) {
@@ -212,7 +249,7 @@ def locationHandler(evt) {
   if (isSpecifiedMode && canStartAutomatically()) {
     grantAccess()
   } else if (!isSpecifiedMode && modeStopIsTrue) {
-    revokeAccess()
+    scheduledEnd()
   }
 }
 
@@ -223,8 +260,19 @@ def scheduledStart() {
 }
 
 def scheduledEnd() {
-  revokeAccess()
+  userSlotArray().each { slot->
+    revokeAccess(slot)
+  }
 }
+
+def userSlotArray() {
+  def array = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    array << settings."userSlot${i}"
+  }
+  return array
+}
+
 
 
 def canStartAutomatically() {
@@ -245,9 +293,10 @@ def appTouch(evt) {
 
 
 def codereturn(evt) {
-  def codenumber = evt.data.replaceAll("\\D+","");
-  if (evt.value == Integer.toString(userSlot)) {
-    if (codenumber == "") {
+  def codeNumber = evt.data.replaceAll("\\D+","")
+  if (userSlotArray().contains(evt.integerValue)) {
+    def userName = usedUserName(evt.integerValue)
+    if (codeNumber == "") {
       def message = "${userName} no longer has access to ${evt.displayName}"
       send(message)
     } else {
@@ -257,13 +306,25 @@ def codereturn(evt) {
   }
 }
 
+def usedUserName(usedSlot) {
+  def name = 'Unknown'
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    if (settings."userSlot${i}" == usedSlot) {
+      name = settings."userName${i}"
+    }
+  }
+  return name
+}
+
 def codeUsed(evt) {
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
-    def message = "${evt.displayName} was unlocked by ${userName}"
-    if(codeData.usedCode == userSlot) {
-      if(burnCode) {
-        revokeAccess()
+
+    if(userSlotArray().contains(codeData.usedCode)) {
+      def unlockUserName = settings."userName${codeData.usedCode}"
+      def message = "${evt.displayName} was unlocked by ${unlockUserName}"
+      if(settings."burnCode${codeData.usedCode}") {
+        revokeAccess(codeData.usedCode)
         message += ".  Now burning code."
       }
       send(message)
@@ -271,15 +332,18 @@ def codeUsed(evt) {
   }
 }
 
-def revokeAccess() {
-  locks.deleteCode(userSlot)
+def revokeAccess(i) {
+  locks.deleteCode(i)
 }
 def grantAccess() {
-  if (userCode != null) {
-    def newCode = Integer.toString(userCode)
-    locks.setCode(userSlot, newCode)
-  } else {
-    revokeAccess()
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    def userSlot = settings."userSlot${i}"
+    if (settings."userCode${i}" != null) {
+      def newCode = Integer.toString(settings."userCode${i}")
+      locks.setCode(userSlot, newCode)
+    } else {
+      revokeAccess(userSlot)
+    }
   }
 }
 
