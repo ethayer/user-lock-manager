@@ -5,7 +5,7 @@
  *
  */
 definition(
-    name: "User Lock Manager2",
+    name: "User Lock Manager",
     namespace: "ethayer",
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
@@ -32,12 +32,6 @@ def rootPage() {
     }
 
     if (locks) {
-      section("How many Users? (1-30)?") {
-        input name: "maxUsers", title: "Number of users", type: "number", required: true, multiple: false,  refreshAfterSelection: true
-      }
-      section("How many Users Are in other installs? (0-29)?") {
-        input name: "otherAppUsers", title: "Number of users", type: "number", defaultValue: "0", required: true, multiple: false,  refreshAfterSelection: true
-      }
       section {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage")
       }
@@ -56,7 +50,10 @@ def rootPage() {
 
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
-    section {
+    section("How many Users? (1-30)?") {
+      input name: "maxUsers", title: "Number of users", type: "number", required: true, multiple: false,  refreshAfterSelection: true
+    }
+    section("User Settings") {
       for (int i = 1; i <= settings.maxUsers; i++) {
         href(name: "toUserPage", page: "userPage", params: [number: i], description: userHrefDescription(i), title: userHrefTitle(i))
       }
@@ -70,6 +67,7 @@ def userPage(params) {
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
       input(name: "userCode${i}", type: "number", title: "Code (4 to 8 digits) or Blank to Delete", required: false, defaultValue: settings."userCode${i}")
+      input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
     }
     section {
@@ -78,6 +76,13 @@ def userPage(params) {
   }
 }
 
+def preSlectedCode(i) {
+  if (settings."userSlot${i}" != null) {
+    return settings."userSlot${i}"
+  } else {
+    return i
+  }
+}
 
 def notificationPage() {
   dynamicPage(name: "notificationPage", title: "Notification Settings") {
@@ -134,16 +139,17 @@ def userHrefTitle(i) {
 }
 def userHrefDescription(i) {
   def uc = settings."userCode${i}"
+  def us = settings."userSlot${i}"
   def description = ""
-  log.debug uc
+  if (us != null) {
+    description += "Slot: ${us}"
+  }
   if (uc != null) {
-    log.debug "in!"
-    description = "Code: ${uc}"
+    description += " // ${uc}"
     if(settings."burnCode${i}") {
-      description += ' Single Use'
+      description += ' [Single Use]'
     }
   }
-  log.debug description
   return description
 }
 
@@ -254,10 +260,19 @@ def scheduledStart() {
 }
 
 def scheduledEnd() {
-  for (int i = 1; i <= settings.maxUsers; i++) {
-    revokeAccess(i)
+  userSlotArray().each { slot->
+    revokeAccess(slot)
   }
 }
+
+def userSlotArray() {
+  def array = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    array << settings."userSlot${i}"
+  }
+  return array
+}
+
 
 
 def canStartAutomatically() {
@@ -278,25 +293,34 @@ def appTouch(evt) {
 
 
 def codereturn(evt) {
-  def codeNumber = evt.data.replaceAll("\\D+","");
-
-  if (evt.value.toInteger() <= settings.maxUsers) {
-    def usedUserName = settings."userName${evt.integerValue}"
+  def codeNumber = evt.data.replaceAll("\\D+","")
+  if (userSlotArray().contains(evt.integerValue)) {
+    def userName = usedUserName(evt.integerValue)
     if (codeNumber == "") {
-      def message = "${usedUserName} no longer has access to ${evt.displayName}"
+      def message = "${userName} no longer has access to ${evt.displayName}"
       send(message)
     } else {
-      def message = "${usedUserName} now has access to ${evt.displayName}"
+      def message = "${userName} now has access to ${evt.displayName}"
       send(message)
     }
   }
+}
+
+def usedUserName(usedSlot) {
+  def name = 'Unknown'
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    if (settings."userSlot${i}" == usedSlot) {
+      name = settings."userName${i}"
+    }
+  }
+  return name
 }
 
 def codeUsed(evt) {
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
 
-    if(codeData.usedCode && codeData.usedCode <= settings.maxUsers) {
+    if(userSlotArray().contains(codeData.usedCode)) {
       def unlockUserName = settings."userName${codeData.usedCode}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       if(settings."burnCode${codeData.usedCode}") {
@@ -313,12 +337,12 @@ def revokeAccess(i) {
 }
 def grantAccess() {
   for (int i = 1; i <= settings.maxUsers; i++) {
+    def userSlot = settings."userSlot${i}"
     if (settings."userCode${i}" != null) {
-      def newCode = settings."userCode${i}"
-      newCode = Integer.toString(newCode)
-      locks.setCode(i, newCode)
+      def newCode = Integer.toString(settings."userCode${i}")
+      locks.setCode(userSlot, newCode)
     } else {
-      revokeAccess(i)
+      revokeAccess(userSlot)
     }
   }
 }
