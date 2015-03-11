@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v1.2
+ *  User Lock Manager v2
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -10,9 +10,9 @@ definition(
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
     category: "Safety & Security",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
+    iconUrl: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanager.png",
+    iconX2Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx2.png",
+    iconX3Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx3.png")
 
  import groovy.json.JsonSlurper
 
@@ -53,7 +53,7 @@ def setupPage() {
     }
     section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
-        href(name: "toUserPage", page: "userPage", params: [number: i], description: userHrefDescription(i), title: userHrefTitle(i))
+        href(name: "toUserPage", page: "userPage", params: [number: i], required: true, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
       }
     }
   }
@@ -64,9 +64,12 @@ def userPage(params) {
     def i = params.number
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
-      input(name: "userCode${i}", type: "number", title: "Code (4 to 8 digits) or Blank to Delete", required: false, defaultValue: settings."userCode${i}")
+      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits) or Blank to Delete", required: false, defaultValue: settings."userCode${i}")
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
+    }
+    section {
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
+      input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
     }
     section {
       href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
@@ -113,8 +116,13 @@ def schedulingPage() {
       }
     }
     section {
-      input(name: "startTime", type: "time", title: "Allow Access At This Time", description: null, required: false)
-      input(name: "endTime", type: "time", title: "Deny Access At This Time", description: null, required: false)
+      if (modeStart) {
+        input "andOrTime", "enum", title: "[And/Or] at a set time?", metadata:[values:["and", "or"]], required: false, submitOnChange: true
+      }
+      if ((modeStart == null) || andOrTime) {
+        input(name: "startTime", type: "time", title: "Allow Access At This Time", description: null, required: false)
+        input(name: "endTime", type: "time", title: "Deny Access At This Time", description: null, required: false)
+      }
     }
   }
 }
@@ -167,6 +175,16 @@ def userHrefDescription(i) {
   return description
 }
 
+def userPageState(i) {
+  if (settings."userCode${i}" && settings."userEnabled${i}") {
+    return 'complete'
+  } else if (settings."userCode${i}" && !settings."userEnabled${i}") {
+    return 'incomplete'
+  } else {
+    return 'incomplete'
+  }
+}
+
 def fancyDeviceString(devices = []) {
   fancyString(devices.collect { deviceLabel(it) })
 }
@@ -198,17 +216,18 @@ def schedulingHrefDescription() {
   }
 
   descriptionParts << "${fancyDeviceString(locks)} will be accessible"
-
-  if (startTime) {
-    descriptionParts << "at ${humanReadableStartDate()}"
-  }
-  if (endTime) {
-    descriptionParts << "until ${humanReadableEndDate()}"
+  if ((andOrTime != null) || (modeStart == null)) {
+    if (startTime) {
+      descriptionParts << "at ${humanReadableStartDate()}"
+    }
+    if (endTime) {
+      descriptionParts << "until ${humanReadableEndDate()}"
+    }
   }
 
   if (modeStart) {
-    if (startTime) {
-      descriptionParts << "or"
+    if (startTime && andOrTime) {
+      descriptionParts << andOrTime
     }
     descriptionParts << "when ${location.name} enters '${modeStart}' mode"
   }
@@ -233,24 +252,25 @@ def updated() {
 
 private initialize() {
   unsubscribe()
-
+  unschedule()
   if (startTime != null) {
     log.debug "scheduling access routine to run at ${startTime}"
     schedule(startTime, "scheduledStart")
   }
   if (endTime != null) {
     log.debug "scheduling access denial routine to run at ${endTime}"
-    schedule(endTime, "scheduledEnd")
+    schedule(endTime, "scheduleEndCheck")
   }
 
   subscribe(location, locationHandler)
 
-  subscribe(app, appTouch)
   subscribe(locks, "codeReport", codereturn)
   subscribe(locks, "lock", codeUsed)
   if (homePhrases) {
     subscribe(locks, "lock", performActions)
   }
+  revokeDisabledUsers()
+  modeCheck()
 }
 
 def locationHandler(evt) {
@@ -260,25 +280,119 @@ def locationHandler(evt) {
     return
   }
 
-  def isSpecifiedMode = (evt.value == modeStart)
-  def modeStopIsTrue = (modeStop && modeStop != "false")
+  modeCheck()
+}
 
-  if (isSpecifiedMode && canStartAutomatically()) {
+def checkSechdule() {
+  def scheduleCheck = false
+  if (andOrTime && (isInCorrectMode() || isInScheduledTime())) {
+    if (andOrTime == 'and') {
+      if (isInCorrectMode() && isInScheduledTime()) {
+        scheduleCheck = true
+      }
+    } else {
+      if (isInCorrectMode() || isInScheduledTime()) {
+        scheduleCheck = true
+      }
+    }
+  } else {
+    if (isInCorrectMode() || isInScheduledTime()) {
+      scheduleCheck = true
+    }
+  }
+  return scheduleCheck
+}
+
+def modeCheck() {
+  if (modeStart || startTime || days) {
+    def isSpecifiedMode = false
+    if (modeStart && startTime) {
+      isSpecifiedMode = checkSechdule()
+    } else if (startTime && !modeStart) {
+      isSpecifiedMode = isInScheduledTime()
+    } else if (modeStart && !startTime) {
+      isSpecifiedMode = isInCorrectMode()
+    } else {
+      isSpecifiedMode = true
+    }
+
+    def modeStopIsTrue = (modeStop && modeStop != "false")
+
+    if (isSpecifiedMode && canStartAutomatically()) {
+      grantAccess()
+    } else {
+      scheduledEnd()
+    }
+  } else {
+    //there's no schedule
     grantAccess()
-  } else if (!isSpecifiedMode && modeStopIsTrue) {
-    scheduledEnd()
+  }
+}
+
+def isInCorrectMode() {
+  if (modeStart) {
+    if (location.mode == modeStart) {
+      return true
+    } else {
+      return false
+    }
+  } else {
+    return false
+  }
+}
+
+def isInScheduledTime() {
+  if (startTime != null && endTime != null) {
+    def start = timeToday(startTime)
+    def stop = timeToday(endTime)
+    def now = new Date()
+    if (start.before(now) && stop.after(now)){
+      return true
+    } else {
+      return false
+    }
+  } else {
+    return false
   }
 }
 
 def scheduledStart() {
+  if (andOrTime) {
+    if (andOrTime == 'and' && isInCorrectMode()) {
+      grantIfCorrectDays()
+    } else if (andOrTime == 'or') {
+      grantIfCorrectDays()
+    } else {
+      // Do Nothing, We can't grant access now.
+    }
+  } else {
+    grantIfCorrectDays()
+  }
+}
+def grantIfCorrectDays() {
   if (canStartAutomatically()) {
     grantAccess()
   }
 }
 
+def scheduleEndCheck() {
+  if (andOrTime) {
+    if (andOrTime == 'and') {
+      scheduledEnd()
+    } else if (andOrTime == 'or' && modeStart && isInCorrectMode()) {
+      //do nothing, still in correct mode
+    } else {
+      scheduledEnd()
+    }
+  } else {
+    scheduledEnd()
+  }
+}
+
 def scheduledEnd() {
-  userSlotArray().each { slot->
-    revokeAccess(slot)
+  enabledUsersArray().each { user->
+    def deleteSlot = settings."userSlot${user}"
+    revokeAccess(deleteSlot)
   }
 }
 
@@ -286,6 +400,25 @@ def userSlotArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
     array << settings."userSlot${i}"
+  }
+  return array
+}
+
+def disabledUsersArray() {
+  def array = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    if (settings."userEnabled${i}" != true) {
+      array << i
+    }
+  }
+  return array
+}
+def enabledUsersArray() {
+  def array = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    if (settings."userEnabled${i}" == true) {
+      array << i
+    }
   }
   return array
 }
@@ -304,15 +437,17 @@ def canStartAutomatically() {
   return false
 }
 
-def appTouch(evt) {
-  grantAccess()
+def revokeDisabledUsers() {
+  disabledUsersArray().each { user->
+    def deleteSlot = settings."userSlot${user}"
+    revokeAccess(deleteSlot)
+  }
 }
-
 
 def codereturn(evt) {
   def codeNumber = evt.data.replaceAll("\\D+","")
   if (userSlotArray().contains(evt.integerValue)) {
-    def userName = usedUserName(evt.integerValue)
+    def userName = settings."userName${usedUserSlot(evt.integerValue)}"
     if (codeNumber == "") {
       def message = "${userName} no longer has access to ${evt.displayName}"
       send(message)
@@ -323,14 +458,14 @@ def codereturn(evt) {
   }
 }
 
-def usedUserName(usedSlot) {
-  def name = 'Unknown'
+def usedUserSlot(usedSlot) {
+  def slot = ''
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (settings."userSlot${i}" == usedSlot) {
-      name = settings."userName${i}"
+      slot = i
     }
   }
-  return name
+  return slot
 }
 
 def codeUsed(evt) {
@@ -338,9 +473,10 @@ def codeUsed(evt) {
     def codeData = new JsonSlurper().parseText(evt.data)
 
     if(userSlotArray().contains(codeData.usedCode)) {
-      def unlockUserName = usedUserName(codeData.usedCode)
+      def usedSlot = usedUserSlot(codeData.usedCode)
+      def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
-      if(settings."burnCode${codeData.usedCode}") {
+      if(settings."burnCode${usedSlot}") {
         revokeAccess(codeData.usedCode)
         message += ".  Now burning code."
       }
@@ -353,10 +489,10 @@ def revokeAccess(i) {
   locks.deleteCode(i)
 }
 def grantAccess() {
-  for (int i = 1; i <= settings.maxUsers; i++) {
-    def userSlot = settings."userSlot${i}"
-    if (settings."userCode${i}" != null) {
-      def newCode = Integer.toString(settings."userCode${i}")
+  enabledUsersArray().each { user->
+    def userSlot = settings."userSlot${user}"
+    if (settings."userCode${user}" != null) {
+      def newCode = settings."userCode${user}"
       locks.setCode(userSlot, newCode)
     } else {
       revokeAccess(userSlot)
@@ -368,7 +504,7 @@ def performActions(evt) {
   def message = ""
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
-    if(userSlotArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
+    if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
       location.helloHome.execute(settings.homePhrases)
     }
   }
