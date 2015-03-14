@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v2
+ *  User Lock Manager v2.1
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -49,7 +49,7 @@ def rootPage() {
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
     section("How many Users? (1-30)?") {
-      input name: "maxUsers", title: "Number of users", type: "number", required: true, multiple: false, refreshAfterSelection: true
+      input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true
     }
     section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
@@ -486,16 +486,16 @@ def codeUsed(evt) {
 }
 
 def revokeAccess(i) {
-  locks.deleteCode(i)
+  locks.deleteCode(i, [delay: (i*10000)])
 }
 def grantAccess() {
   enabledUsersArray().each { user->
     def userSlot = settings."userSlot${user}"
     if (settings."userCode${user}" != null) {
       def newCode = settings."userCode${user}"
-      locks.setCode(userSlot, newCode)
+      locks.setCode(userSlot, newCode, [delay: (user*10000)])
     } else {
-      revokeAccess(userSlot)
+      revokeAccess(userSlot, [delay: (user*10000)])
     }
   }
 }
