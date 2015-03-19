@@ -1,6 +1,6 @@
 metadata {
   // Automatically generated. Make future change here.
-  definition (name: "Z-Wave Lock", namespace: "smartthings", author: "SmartThings") {
+  definition (name: "Z-Wave Lock Reporting", namespace: "smartthings", author: "SmartThings") {
     capability "Actuator"
     capability "Lock"
     capability "Polling"
@@ -483,8 +483,14 @@ def poll() {
     if(cmds) cmds << "delay 6000"
   }
   log.debug "poll is sending ${cmds.inspect()}, state: ${state.inspect()}"
+  reportAllCodes(state)
   device.activity()  // workaround to keep polling from being shut off
   cmds ?: null
+}
+
+def reportAllCodes(state) {
+  def map = [ name: "reportAllCodes", data: state, displayed: true, isStateChange: true ]
+  sendEvent(map)
 }
 
 def requestCode(codeNumber) {

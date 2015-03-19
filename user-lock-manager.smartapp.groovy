@@ -15,13 +15,14 @@ definition(
     iconX3Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx3.png")
 
  import groovy.json.JsonSlurper
+ import groovy.json.JsonBuilder
 
  preferences {
   page(name: "rootPage")
   page(name: "setupPage")
   page(name: "userPage")
   page(name: "notificationPage")
-  page(name: "onUnlock")
+  page(name: "onUnlockPage")
   page(name: "schedulingPage")
 }
 
@@ -37,7 +38,7 @@ def rootPage() {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: "", state: "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
-        href(name: "toOnUnlockPage", page: "onUnlock", title: "Actions after Unlock")
+        href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Actions after Unlock")
       }
       section {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
@@ -128,7 +129,7 @@ def schedulingPage() {
 }
 
 
-def onUnlock() {
+def onUnlockPage() {
   dynamicPage(name:"onUnlock", title:"Initiate Actions") {
     section("Actions") {
       def phrases = location.helloHome?.getPhrases()*.label
@@ -266,43 +267,41 @@ private initialize() {
 
   subscribe(locks, "codeReport", codereturn)
   subscribe(locks, "lock", codeUsed)
+  subscribe(locks, "reportAllCodes", pollCodeReport, [filterEvents:false])
   if (homePhrases) {
     subscribe(locks, "lock", performActions)
   }
   revokeDisabledUsers()
-  modeCheck()
+  startSchedule()
 }
 
 def locationHandler(evt) {
   log.debug "locationHandler evt: ${evt.value}"
-
   if (!modeStart) {
     return
   }
-
   modeCheck()
 }
 
 def checkSechdule() {
   def scheduleCheck = false
-  if (andOrTime && (isInCorrectMode() || isInScheduledTime())) {
+  if (andOrTime && (isCorrectMode() || isInScheduledTime())) {
     if (andOrTime == 'and') {
-      if (isInCorrectMode() && isInScheduledTime()) {
+      if (isCorrectMode() && isInScheduledTime()) {
         scheduleCheck = true
       }
     } else {
-      if (isInCorrectMode() || isInScheduledTime()) {
+      if (isCorrectMode() || isInScheduledTime()) {
         scheduleCheck = true
       }
     }
   } else {
-    if (isInCorrectMode() || isInScheduledTime()) {
+    if (isCorrectMode() || isInScheduledTime()) {
       scheduleCheck = true
     }
   }
   return scheduleCheck
 }
-
 def modeCheck() {
   if (modeStart || startTime || days) {
     def isSpecifiedMode = false
@@ -311,7 +310,7 @@ def modeCheck() {
     } else if (startTime && !modeStart) {
       isSpecifiedMode = isInScheduledTime()
     } else if (modeStart && !startTime) {
-      isSpecifiedMode = isInCorrectMode()
+      isSpecifiedMode = isCorrectMode()
     } else {
       isSpecifiedMode = true
     }
@@ -319,17 +318,25 @@ def modeCheck() {
     def modeStopIsTrue = (modeStop && modeStop != "false")
 
     if (isSpecifiedMode && canStartAutomatically()) {
-      grantAccess()
+      return true
     } else {
-      scheduledEnd()
+      return false
     }
   } else {
     //there's no schedule
-    grantAccess()
+    return true
   }
 }
 
-def isInCorrectMode() {
+def startSchedule() {
+  if (modeCheck()) {
+    scheduledStart()
+  } else {
+    scheduledEnd()
+  }
+}
+
+def isCorrectMode() {
   if (modeStart) {
     if (location.mode == modeStart) {
       return true
@@ -358,7 +365,7 @@ def isInScheduledTime() {
 
 def scheduledStart() {
   if (andOrTime) {
-    if (andOrTime == 'and' && isInCorrectMode()) {
+    if (andOrTime == 'and' && isCorrectMode()) {
       grantIfCorrectDays()
     } else if (andOrTime == 'or') {
       grantIfCorrectDays()
@@ -379,7 +386,7 @@ def scheduleEndCheck() {
   if (andOrTime) {
     if (andOrTime == 'and') {
       scheduledEnd()
-    } else if (andOrTime == 'or' && modeStart && isInCorrectMode()) {
+    } else if (andOrTime == 'or' && modeStart && isCorrectMode()) {
       //do nothing, still in correct mode
     } else {
       scheduledEnd()
@@ -390,9 +397,15 @@ def scheduleEndCheck() {
 }
 
 def scheduledEnd() {
+  array = []
   enabledUsersArray().each { user->
-    def deleteSlot = settings."userSlot${user}"
-    revokeAccess(deleteSlot)
+    def userSlot = settings."userSlot${user}"
+    array << ["code${userSlot}", ""]
+  }
+  def json = new groovy.json.JsonBuilder(array).toString()
+  if (json != '[]') {
+    log.debug "Schedule end? ${json}"
+    locks.updateCodes(json)
   }
 }
 
@@ -404,15 +417,6 @@ def userSlotArray() {
   return array
 }
 
-def disabledUsersArray() {
-  def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userEnabled${i}" != true) {
-      array << i
-    }
-  }
-  return array
-}
 def enabledUsersArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
@@ -422,8 +426,27 @@ def enabledUsersArray() {
   }
   return array
 }
+def enabledUsersSlotArray() {
+  def array = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    if (settings."userEnabled${i}" == true) {
+      def userSlot = settings."userSlot${i}"
+      array << userSlot
+    }
+  }
+  return array
+}
 
-
+def disabledUsersSlotArray() {
+  def array = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    if (settings."userEnabled${i}" != true) {
+      def userSlot = settings."userSlot${i}"
+      array << userSlot
+    }
+  }
+  return array
+}
 
 def canStartAutomatically() {
   def today = new Date().format("EEEE", location.timeZone)
@@ -437,15 +460,11 @@ def canStartAutomatically() {
   return false
 }
 
-def revokeDisabledUsers() {
-  disabledUsersArray().each { user->
-    def deleteSlot = settings."userSlot${user}"
-    revokeAccess(deleteSlot)
-  }
-}
-
 def codereturn(evt) {
   def codeNumber = evt.data.replaceAll("\\D+","")
+  def codeSlot = evt.value
+  log.debug "Slot: ${codeSlot} Code: ${codeNumber}"
+
   if (userSlotArray().contains(evt.integerValue)) {
     def userName = settings."userName${usedUserSlot(evt.integerValue)}"
     if (codeNumber == "") {
@@ -462,22 +481,24 @@ def usedUserSlot(usedSlot) {
   def slot = ''
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (settings."userSlot${i}" == usedSlot) {
-      slot = i
+      return i
     }
   }
   return slot
 }
 
 def codeUsed(evt) {
+  def codeData = new JsonSlurper().parseText(evt.data)
+
   if(evt.value == "unlocked" && evt.data) {
-    def codeData = new JsonSlurper().parseText(evt.data)
+    codeData = new JsonSlurper().parseText(evt.data)
 
     if(userSlotArray().contains(codeData.usedCode)) {
       def usedSlot = usedUserSlot(codeData.usedCode)
       def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       if(settings."burnCode${usedSlot}") {
-        revokeAccess(codeData.usedCode)
+        locks.deleteCode(codeData.usedCode)
         message += ".  Now burning code."
       }
       send(message)
@@ -485,18 +506,42 @@ def codeUsed(evt) {
   }
 }
 
-def revokeAccess(i) {
-  locks.deleteCode(i, [delay: (i*10000)])
+def revokeDisabledUsers() {
+  def array = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    if (settings."userEnabled${i}" != true) {
+      def userSlot = settings."userSlot${i}"
+      array << ["code${userSlot}", ""]
+    }
+  }
+  def json = new groovy.json.JsonBuilder(array).toString()
+  if (json != '[]') {
+    log.debug "sendCodes to revoke is: ${json}"
+    locks.updateCodes(json)
+  }
+  runIn(60*2, doPoll)
 }
+def doPoll() {
+  locks.poll()
+}
+
 def grantAccess() {
+  def array = []
+
   enabledUsersArray().each { user->
     def userSlot = settings."userSlot${user}"
     if (settings."userCode${user}" != null) {
       def newCode = settings."userCode${user}"
-      locks.setCode(userSlot, newCode, [delay: (user*10000)])
+      array << ["code${userSlot}", "${newCode}"]
     } else {
-      revokeAccess(userSlot, [delay: (user*10000)])
+      array << ["code${userSlot}", ""]
     }
+  }
+  def json = new groovy.json.JsonBuilder(array).toString()
+  if (json != '[]') {
+    log.debug 'grant'
+    log.debug "sendCodes is: ${json}"
+    locks.updateCodes(json)
   }
 }
 
@@ -522,6 +567,60 @@ def isManualUnlock(codeData) {
     }
   } else {
     return false
+  }
+}
+
+def pollCodeReport(evt) {
+  def active = modeCheck()
+  def codeData = new JsonSlurper().parseText(evt.data)
+  def numberOfCodes = codeData.codes
+  def enabledUsers = enabledUsersSlotArray()
+  def disabledUsers = disabledUsersSlotArray()
+
+  def array = []
+
+  (1..numberOfCodes).each { n->
+    def code = codeData."code${n}"
+    def slot = n
+    if (userSlotArray().contains(slot)) {
+      def usedSlot = usedUserSlot(slot)
+
+      if (active) {
+        if (settings."userEnabled${usedSlot}" && !settings."burnCode${usedSlot}") {
+          if (code == settings."userCode${usedSlot}") {
+            // "Code is Active, We should be active. Nothing to do"
+          } else {
+            // "Code is incorrect, We should be active."
+            array << ["code${slot}", settings."userCode${usedSlot}"]
+          }
+        } else {
+          if (code != '') {
+            // "Code is set, user is disabled, We should be disabled."
+            aray << ["code${slot}", ""]
+          } else {
+            // "Code is not set, user is disabled. Nothing to do"
+          }
+        }
+      } else {
+        if (code != '') {
+          log.debug "Code is set, We should be disabled."
+          aray << ["code${slot}", ""]
+        } else {
+          // "Code is not active, We should be disabled. Nothing to do"
+        }
+      }
+    }
+  }
+  def json = new groovy.json.JsonBuilder(array).toString()
+  if (json != '[]') {
+    locks.each() { lock ->
+      if (lock.id == evt.deviceId) {
+        log.debug 'There are discrepancies!'
+        log.debug "sendCodes fix is: ${json}"
+        locks.updateCodes(json)
+        runIn(60*2, doPoll)
+      }
+    }
   }
 }
 
