@@ -161,9 +161,15 @@ def userHrefTitle(i) {
   return title
 }
 def userHrefDescription(i) {
+  if (!state.codeUsage) {
+    state.codeUsage = [:]
+  }
+  if (!state.codeUsage["code${i}"]) {
+    state.codeUsage["code${i}"] = 0
+  }
   def uc = settings."userCode${i}"
   def us = settings."userSlot${i}"
-  def usage = state.codeUsage["code${i}"]
+  def usage = state?.codeUsage["code${i}"]
   def description = ""
   if (us != null) {
     description += "Slot: ${us}"
