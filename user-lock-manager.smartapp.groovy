@@ -5,7 +5,7 @@
  *
  */
 definition(
-    name: "User Lock Manager TEST",
+    name: "User Lock Manager",
     namespace: "ethayer",
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
