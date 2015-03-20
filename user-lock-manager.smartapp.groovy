@@ -1,11 +1,11 @@
 /**
- *  User Lock Manager v2.1
+ *  User Lock Manager v3
  *
  *  Copyright 2015 Erik Thayer
  *
  */
 definition(
-    name: "User Lock Manager",
+    name: "User Lock Manager TEST",
     namespace: "ethayer",
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
@@ -54,7 +54,7 @@ def setupPage() {
     }
     section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
-        href(name: "toUserPage", page: "userPage", params: [number: i], required: true, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
+        href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
       }
     }
   }
@@ -163,6 +163,7 @@ def userHrefTitle(i) {
 def userHrefDescription(i) {
   def uc = settings."userCode${i}"
   def us = settings."userSlot${i}"
+  def usage = state.codeUsage["code${i}"]
   def description = ""
   if (us != null) {
     description += "Slot: ${us}"
@@ -172,6 +173,9 @@ def userHrefDescription(i) {
     if(settings."burnCode${i}") {
       description += ' [Single Use]'
     }
+  }
+  if (usage != null) {
+    description += " [Usage: ${usage}]"
   }
   return description
 }
@@ -273,6 +277,13 @@ private initialize() {
   }
   revokeDisabledUsers()
   startSchedule()
+}
+
+def resetCodeUsage() {
+  state.codeUsage = [:]
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    state.codeUsage."code${i}" = 0
+  }
 }
 
 def locationHandler(evt) {
@@ -397,15 +408,15 @@ def scheduleEndCheck() {
 }
 
 def scheduledEnd() {
-  array = []
+  def array = []
   enabledUsersArray().each { user->
     def userSlot = settings."userSlot${user}"
     array << ["code${userSlot}", ""]
   }
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
-    log.debug "Schedule end? ${json}"
     locks.updateCodes(json)
+    runIn(60*2, doPoll)
   }
 }
 
@@ -463,7 +474,6 @@ def canStartAutomatically() {
 def codereturn(evt) {
   def codeNumber = evt.data.replaceAll("\\D+","")
   def codeSlot = evt.value
-  log.debug "Slot: ${codeSlot} Code: ${codeNumber}"
 
   if (userSlotArray().contains(evt.integerValue)) {
     def userName = settings."userName${usedUserSlot(evt.integerValue)}"
@@ -497,8 +507,12 @@ def codeUsed(evt) {
       def usedSlot = usedUserSlot(codeData.usedCode)
       def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
+      // increment usage
+      state.codeUsage["code${usedSlot}"] = state.codeUsage["code${usedSlot}"] + 1
+
       if(settings."burnCode${usedSlot}") {
         locks.deleteCode(codeData.usedCode)
+        runIn(60*2, doPoll)
         message += ".  Now burning code."
       }
       send(message)
@@ -516,18 +530,18 @@ def revokeDisabledUsers() {
   }
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
-    log.debug "sendCodes to revoke is: ${json}"
     locks.updateCodes(json)
+    runIn(60*2, doPoll)
   }
-  runIn(60*2, doPoll)
 }
+
 def doPoll() {
+  // this gets codes if custom device is installed
   locks.poll()
 }
 
 def grantAccess() {
   def array = []
-
   enabledUsersArray().each { user->
     def userSlot = settings."userSlot${user}"
     if (settings."userCode${user}" != null) {
@@ -537,11 +551,11 @@ def grantAccess() {
       array << ["code${userSlot}", ""]
     }
   }
+  resetCodeUsage()
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
-    log.debug 'grant'
-    log.debug "sendCodes is: ${json}"
     locks.updateCodes(json)
+    runIn(60*2, doPoll)
   }
 }
 
@@ -570,23 +584,31 @@ def isManualUnlock(codeData) {
   }
 }
 
+def isActiveBurnCode(slot) {
+  if (settings."burnCode${slot}" && state.codeUsage["code${slot}"] > 0) {
+    return false
+  } else {
+    // not a burn code / not yet used
+    return true
+  }
+}
+
 def pollCodeReport(evt) {
   def active = modeCheck()
   def codeData = new JsonSlurper().parseText(evt.data)
   def numberOfCodes = codeData.codes
-  def enabledUsers = enabledUsersSlotArray()
-  def disabledUsers = disabledUsersSlotArray()
+  def userSlots = userSlotArray()
 
   def array = []
 
   (1..numberOfCodes).each { n->
     def code = codeData."code${n}"
     def slot = n
-    if (userSlotArray().contains(slot)) {
+    if (userSlots.contains(slot)) {
       def usedSlot = usedUserSlot(slot)
 
       if (active) {
-        if (settings."userEnabled${usedSlot}" && !settings."burnCode${usedSlot}") {
+        if (settings."userEnabled${usedSlot}" && isActiveBurnCode(usedSlot)) {
           if (code == settings."userCode${usedSlot}") {
             // "Code is Active, We should be active. Nothing to do"
           } else {
@@ -596,15 +618,15 @@ def pollCodeReport(evt) {
         } else {
           if (code != '') {
             // "Code is set, user is disabled, We should be disabled."
-            aray << ["code${slot}", ""]
+            array << ["code${slot}", ""]
           } else {
             // "Code is not set, user is disabled. Nothing to do"
           }
         }
       } else {
         if (code != '') {
-          log.debug "Code is set, We should be disabled."
-          aray << ["code${slot}", ""]
+          // "Code is set, We should be disabled."
+          array << ["code${slot}", ""]
         } else {
           // "Code is not active, We should be disabled. Nothing to do"
         }
@@ -615,7 +637,6 @@ def pollCodeReport(evt) {
   if (json != '[]') {
     locks.each() { lock ->
       if (lock.id == evt.deviceId) {
-        log.debug 'There are discrepancies!'
         log.debug "sendCodes fix is: ${json}"
         locks.updateCodes(json)
         runIn(60*2, doPoll)
