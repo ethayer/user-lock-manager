@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3
+ *  User Lock Manager v3.2
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -130,7 +130,7 @@ def schedulingPage() {
 
 
 def onUnlockPage() {
-  dynamicPage(name:"onUnlock", title:"Initiate Actions") {
+  dynamicPage(name:"onUnlockPage", title:"Initiate Actions") {
     section("Actions") {
       def phrases = location.helloHome?.getPhrases()*.label
       if (phrases) {
