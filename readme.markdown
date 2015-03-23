@@ -11,14 +11,14 @@ Welcome to Lock Manager!
 ###Features:
 * Assign Codes to Multiple Users.
 * Manage Multiple Locks.
-* See how many times a code is used (reset on each schedule period)
+* See how many times a code is used (reset usage manually)
 * Be notified when a user uses their code.
 * Delete codes after they are used*.
-* Optionally Schedule Users so that they only have access during certain times, modes, or days of the week.
+* Optionally Schedule Users so that they only have access during certain times, modes, days of the week, or a calendar range.
 * Decide which notifications to receive in the event that the locks are too chatty.
 * When a code is entered, preform Hello Home Actions.
 
-\* Code is burned once per scheduled period.  If a new cycle starts, that code will be active once again.  If no schedule is created, the code will only work once.
+\* Code is burned when a user enters it at any selected lock. Code will not become active again until code usage for that user is reset.
 
 ##How to use:
 1. Install the app via the SmartThings developer IDE.  Copy all code from the .groovy file on this repository.
