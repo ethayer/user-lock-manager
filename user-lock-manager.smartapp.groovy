@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.2
+ *  User Lock Manager v3.3
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -24,6 +24,9 @@ definition(
   page(name: "notificationPage")
   page(name: "onUnlockPage")
   page(name: "schedulingPage")
+  page(name: "calendarPage")
+  page(name: "resetAllCodeUsagePage")
+  page(name: "resetCodeUsagePage")
 }
 
 def rootPage() {
@@ -35,7 +38,7 @@ def rootPage() {
 
     if (locks) {
       section {
-        href(name: "toSetupPage", title: "User Settings", page: "setupPage")
+        href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: "", state: "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Actions after Unlock")
@@ -51,6 +54,7 @@ def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
     section("How many Users? (1-30)?") {
       input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true
+      href(name: "toResetAllCodeUsage", title: "Reset Code Usage", page: "resetAllCodeUsagePage", description: "Tap to reset")
     }
     section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
@@ -65,7 +69,7 @@ def userPage(params) {
     def i = params.number
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
-      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits) or Blank to Delete", required: false, defaultValue: settings."userCode${i}")
+      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
     }
     section {
@@ -74,6 +78,7 @@ def userPage(params) {
     }
     section {
       href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
+      href(name: "toResetCodeUsage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
     }
   }
 }
@@ -107,27 +112,51 @@ def notificationPage() {
 }
 def schedulingPage() {
   dynamicPage(name: "schedulingPage", title: "Rules For Access Scheduling") {
-    section {
-      input(name: "days", type: "enum", title: "Allow User Access On These Days", description: "Every day", required: false, multiple: true, options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
-    }
-    section {
-      input(name: "modeStart", title: "Allow Access when entering this mode", type: "mode", required: false, mutliple: false, submitOnChange: true)
-      if (modeStart) {
-        input(name: "modeStop", title: "Deny Access when leaving '${modeStart}' mode", type: "bool", required: false)
+    if (!days) {
+      section {
+        href(name: "toCalendarPage", title: "Calendar", page: "calendarPage", description: calendarHrefDescription(), state: calendarHrefDescription() ? "complete" : "")
       }
     }
-    section {
-      if (modeStart) {
-        input "andOrTime", "enum", title: "[And/Or] at a set time?", metadata:[values:["and", "or"]], required: false, submitOnChange: true
+    if (!startDay && !startMonth && !startYear && !endDay && !endMonth && !endYear) {
+      section {
+        input(name: "days", type: "enum", title: "Allow User Access On These Days", description: "Every day", required: false, multiple: true, options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], submitOnChange: true)
       }
-      if ((modeStart == null) || andOrTime) {
-        input(name: "startTime", type: "time", title: "Allow Access At This Time", description: null, required: false)
-        input(name: "endTime", type: "time", title: "Deny Access At This Time", description: null, required: false)
+      section {
+        input(name: "modeStart", title: "Allow Access when in this mode", type: "mode", required: false, mutliple: false, submitOnChange: true)
+      }
+      section {
+        if (modeStart) {
+          input "andOrTime", "enum", title: "[And/Or] at a set time?", metadata:[values:["and", "or"]], required: false, submitOnChange: true
+        }
+        if ((modeStart == null) || andOrTime) {
+          input(name: "startTime", type: "time", title: "Start Time", description: null, required: false)
+          input(name: "endTime", type: "time", title: "End Time", description: null, required: false)
+        }
       }
     }
   }
 }
 
+def calendarPage() {
+  dynamicPage(name: "calendarPage", title: "Calendar Access") {
+    section() {
+      paragraph "This page is for advanced users only. You must enter each field carefully."
+      paragraph "Calendar use does not support daily grant/deny OR Modes.  You cannot both have a date here, and allow access only on certain days/modes."
+    }
+    section("Start Date") {
+      input name: "startDay", type: "number", title: "Day", required: false
+      input name: "startMonth", type: "number", title: "Month", required: false
+      input name: "startYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
+      input name: "startTime", type: "time", title: "Start Time", description: null, required: false
+    }
+    section("End Date") {
+      input name: "endDay", type: "number", title: "Day", required: false
+      input name: "endMonth", type: "number", title: "Month", required: false
+      input name: "endYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
+      input name: "endTime", type: "time", title: "End Time", description: null, required: false
+    }
+  }
+}
 
 def onUnlockPage() {
   dynamicPage(name:"onUnlockPage", title:"Initiate Actions") {
@@ -144,6 +173,46 @@ def onUnlockPage() {
   }
 }
 
+def resetCodeUsagePage(params) {
+  // do reset
+  resetCodeUsage(params.number)
+  dynamicPage(name:"resetCodeUsagePage", title:"User Settings") {
+    def i = params.number
+    section {
+      paragraph "User code usage has been reset."
+    }
+    section("Code #${i}") {
+      input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
+      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
+      input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
+    }
+    section {
+      input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
+      input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
+    }
+    section {
+      href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
+    }
+  }
+}
+def resetAllCodeUsagePage() {
+  // do resetAll
+  resetAllCodeUsage()
+  dynamicPage(name:"resetAllCodeUsagePage", title:"User Settings") {
+    section {
+      paragraph "All user code usages have been reset."
+    }
+    section("How many Users? (1-30)?") {
+      input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true
+    }
+    section("Users") {
+      for (int i = 1; i <= settings.maxUsers; i++) {
+        href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
+      }
+    }
+  }
+}
+
 public smartThingsDateFormat() { "yyyy-MM-dd'T'HH:mm:ss.SSSZ" }
 
 public humanReadableStartDate() {
@@ -151,6 +220,34 @@ public humanReadableStartDate() {
 }
 public humanReadableEndDate() {
   new Date().parse(smartThingsDateFormat(), endTime).format("h:mm a", timeZone(endTime))
+}
+
+def setupPageDescription(){
+  def parts = []
+  for (int i = 1; i <= settings.maxUsers; i++) {
+    parts << settings."userName${i}"
+  }
+  return fancyString(parts)
+}
+
+def calendarHrefDescription() {
+  def dateStart = startDateTime()
+  def dateEnd = endDateTime()
+  if (dateEnd && dateStart) {
+    def startReadableTime = readableDateTime(dateStart)
+    def endReadableTime = readableDateTime(dateEnd)
+    return "Accessible from ${startReadableTime} until ${endReadableTime}"
+  } else if (!dateEnd && dateStart) {
+    def startReadableTime = readableDateTime(dateStart)
+    return "Accessible on ${startReadableTime}"
+  } else if (dateEnd && !dateStart){
+    def endReadableTime = readableDateTime(dateEnd)
+    return "Accessible until ${endReadableTime}"
+  }
+}
+
+def readableDateTime(date) {
+  new Date().parse(smartThingsDateFormat(), date.format(smartThingsDateFormat(), location.timeZone)).format("EEE, MMM d yyyy 'at' h:mma", location.timeZone)
 }
 
 def userHrefTitle(i) {
@@ -175,7 +272,7 @@ def userHrefDescription(i) {
     description += "Slot: ${us}"
   }
   if (uc != null) {
-    description += " // ${uc}"
+    description += " / ${uc}"
     if(settings."burnCode${i}") {
       description += ' [Single Use]'
     }
@@ -188,7 +285,16 @@ def userHrefDescription(i) {
 
 def userPageState(i) {
   if (settings."userCode${i}" && settings."userEnabled${i}") {
-    return 'complete'
+    if (settings."burnCode${i}") {
+      if (state.codeUsage."code${i}" > 0) {
+        return 'incomplete'
+      } else {
+        return 'complete'
+      }
+    } else {
+      return 'complete'
+    }
+
   } else if (settings."userCode${i}" && !settings."userEnabled${i}") {
     return 'incomplete'
   } else {
@@ -220,35 +326,38 @@ def fancyString(listOfStrings) {
 }
 
 def schedulingHrefDescription() {
-
-  def descriptionParts = []
-  if (days) {
-    descriptionParts << "On ${fancyString(days)},"
-  }
-
-  descriptionParts << "${fancyDeviceString(locks)} will be accessible"
-  if ((andOrTime != null) || (modeStart == null)) {
-    if (startTime) {
-      descriptionParts << "at ${humanReadableStartDate()}"
+  if (startDateTime() || endDateTime()) {
+    calendarHrefDescription()
+  } else {
+    def descriptionParts = []
+    if (days) {
+      descriptionParts << "On ${fancyString(days)},"
     }
-    if (endTime) {
-      descriptionParts << "until ${humanReadableEndDate()}"
+
+    descriptionParts << "${fancyDeviceString(locks)} will be accessible"
+    if ((andOrTime != null) || (modeStart == null)) {
+      if (startTime) {
+        descriptionParts << "at ${humanReadableStartDate()}"
+      }
+      if (endTime) {
+        descriptionParts << "until ${humanReadableEndDate()}"
+      }
     }
-  }
 
-  if (modeStart) {
-    if (startTime && andOrTime) {
-      descriptionParts << andOrTime
+    if (modeStart) {
+      if (startTime && andOrTime) {
+        descriptionParts << andOrTime
+      }
+      descriptionParts << "when ${location.name} enters '${modeStart}' mode"
     }
-    descriptionParts << "when ${location.name} enters '${modeStart}' mode"
+
+    if (descriptionParts.size() <= 1) {
+      // locks will be in the list no matter what. No rules are set if only locks are in the list
+      return null
+    }
+    return descriptionParts.join(" ")
   }
 
-  if (descriptionParts.size() <= 1) {
-    // locks will be in the list no matter what. No rules are set if only locks are in the list
-    return null
-  }
-
-  return descriptionParts.join(" ")
 }
 
 def installed() {
@@ -264,13 +373,23 @@ def updated() {
 private initialize() {
   unsubscribe()
   unschedule()
-  if (startTime != null) {
+
+  if (startTime && !startDateTime()) {
     log.debug "scheduling access routine to run at ${startTime}"
-    schedule(startTime, "scheduledStart")
+    schedule(startTime, "reconcileCodesStart")
+  } else if (startDateTime()) {
+    // There's a start date, so let's run then
+    log.debug "scheduling RUNONCE start"
+    runOnce(startDateTime().format(smartThingsDateFormat(), location.timeZone), "reconcileCodesStart")
   }
-  if (endTime != null) {
+
+  if (endTime && !endDateTime()) {
     log.debug "scheduling access denial routine to run at ${endTime}"
-    schedule(endTime, "scheduleEndCheck")
+    schedule(endTime, "reconcileCodesEnd")
+  } else if (endDateTime()) {
+    // There's a end date, so let's run then
+    log.debug "scheduling RUNONCE end"
+    runOnce(endDateTime().format(smartThingsDateFormat(), location.timeZone), "reconcileCodesEnd")
   }
 
   subscribe(location, locationHandler)
@@ -278,18 +397,23 @@ private initialize() {
   subscribe(locks, "codeReport", codereturn)
   subscribe(locks, "lock", codeUsed)
   subscribe(locks, "reportAllCodes", pollCodeReport, [filterEvents:false])
+
   if (homePhrases) {
     subscribe(locks, "lock", performActions)
   }
+
   revokeDisabledUsers()
-  startSchedule()
+  reconcileCodes()
 }
 
-def resetCodeUsage() {
+def resetAllCodeUsage() {
   state.codeUsage = [:]
   for (int i = 1; i <= settings.maxUsers; i++) {
     state.codeUsage."code${i}" = 0
   }
+}
+def resetCodeUsage(i) {
+  state.codeUsage."code${i}" = 0
 }
 
 def locationHandler(evt) {
@@ -300,130 +424,203 @@ def locationHandler(evt) {
   modeCheck()
 }
 
-def checkSechdule() {
-  def scheduleCheck = false
-  if (andOrTime && (isCorrectMode() || isInScheduledTime())) {
-    if (andOrTime == 'and') {
-      if (isCorrectMode() && isInScheduledTime()) {
-        scheduleCheck = true
-      }
-    } else {
-      if (isCorrectMode() || isInScheduledTime()) {
-        scheduleCheck = true
-      }
-    }
+def reconcileCodes() {
+  if (isAbleToStart()) {
+    grantAccess()
   } else {
-    if (isCorrectMode() || isInScheduledTime()) {
-      scheduleCheck = true
-    }
+    revokeAccess()
   }
-  return scheduleCheck
 }
-def modeCheck() {
-  if (modeStart || startTime || days) {
-    def isSpecifiedMode = false
-    if (modeStart && startTime) {
-      isSpecifiedMode = checkSechdule()
-    } else if (startTime && !modeStart) {
-      isSpecifiedMode = isInScheduledTime()
-    } else if (modeStart && !startTime) {
-      isSpecifiedMode = isCorrectMode()
-    } else {
-      isSpecifiedMode = true
-    }
 
-    def modeStopIsTrue = (modeStop && modeStop != "false")
+def reconcileCodesStart() {
+  // schedule start of reconcileCodes
+  reconcileCodes()
+}
 
-    if (isSpecifiedMode && canStartAutomatically()) {
-      return true
+def reconcileCodesEnd() {
+  // schedule end of reconcileCodes
+  reconcileCodes()
+}
+
+def isAbleToStart() {
+  def dateStart = startDateTime()
+  def dateEnd = endDateTime()
+
+  if (dateStart || dateEnd) {
+    // calendar schedule above all
+    return checkCalendarSchedule(dateStart, dateEnd)
+  } else if (modeStart || startTime || endTime || days) {
+    // No calendar set, check daily schedule
+    if (isCorrectDay()) {
+      // it's the right day
+      checkDailySchedule()
     } else {
-      return false
+      // it's the wrong day
     }
   } else {
-    //there's no schedule
+    // no schedule
     return true
   }
 }
 
-def startSchedule() {
-  if (modeCheck()) {
-    scheduledStart()
+def checkDailySchedule() {
+  if (andOrTime && modeStart && (isCorrectMode() || isInScheduledTime())) {
+    // in correct mode or time with and/or switch
+    if (andOrTime == 'and') {
+      // must be both
+      if (isCorrectMode() && isInScheduledTime()) {
+        // is both
+        return true
+      } else {
+        // is not both
+        return false
+      }
+    } else {
+      // could be either
+      if (isCorrectMode() || isInScheduledTime()) {
+        // it is either mode or time
+        return true
+      } else {
+        // is not either mode or time
+        return false
+      }
+    }
   } else {
-    scheduledEnd()
+    // Allow either mode or time, no andOrTime is set
+    if (isCorrectMode() || isInScheduledTime()) {
+      // it is either mode or time
+      return true
+    } else {
+      // is not either mode or time
+      return false
+    }
+  }
+}
+
+def checkCalendarSchedule(dateStart, dateEnd) {
+  def now = rightNow().getTime()
+  if (dateStart && !dateEnd) {
+    // There's a start time, but no end time.  Allow access after start
+    if (dateStart.getTime() > now) {
+      // It's after the start time
+      return true
+    } else {
+      // It's before the start time
+      return false
+    }
+
+  } else if (dateEnd && !dateStart) {
+    // There's a end time, but no start time.  Allow access until end
+    if (dateStart.getTime() > now) {
+      // It's after the start time
+      return true
+    } else {
+      // It's before the start time
+      return false
+    }
+
+  } else {
+    // There's both an end time, and a start time.  Allow access between them.
+    if (dateStart.getTime() < now && dateEnd.getTime() > now) {
+      // It's in calendar times
+      return true
+    } else {
+      // It's not in calendar times
+      return false
+    }
   }
 }
 
 def isCorrectMode() {
   if (modeStart) {
+    // mode check is on
     if (location.mode == modeStart) {
+      // we're in the right one mode
       return true
     } else {
+      // we're in the wrong mode
       return false
     }
   } else {
+    // mode check is off
     return false
   }
 }
 
 def isInScheduledTime() {
-  if (startTime != null && endTime != null) {
+  def now = new Date()
+  if (startTime && endTime) {
     def start = timeToday(startTime)
     def stop = timeToday(endTime)
-    def now = new Date()
+
+    // there's both start time and end time
     if (start.before(now) && stop.after(now)){
+      // It's between the times
       return true
     } else {
+      // It's not between the times
+      return false
+    }
+  } else if (startTime && !endTime){
+    // there's a start time, but no end time
+    def start = timeToday(startTime)
+    if (start.before(now)) {
+      // it's after start time
+      return true
+    } else {
+      //it's before start time
+      return false
+    }
+  } else if (!startTime && endTime) {
+    // there's an end time but no start time
+    def stop = timeToday(endTime)
+    if (stop.after(now)) {
+      // it's still before end time
+      return true
+    } else {
+      // it's after end time
       return false
     }
   } else {
+    // there are no times
     return false
   }
 }
 
-def scheduledStart() {
-  if (andOrTime) {
-    if (andOrTime == 'and' && isCorrectMode()) {
-      grantIfCorrectDays()
-    } else if (andOrTime == 'or') {
-      grantIfCorrectDays()
-    } else {
-      // Do Nothing, We can't grant access now.
-    }
+def startDateTime() {
+  if (startDay && startMonth && startYear) {
+    def time = new Date().parse(smartThingsDateFormat(), startTime).format("'T'HH:mm:ss.SSSZ", timeZone(startTime))
+    return Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", "${startYear}-${startMonth}-${startDay}${time}")
   } else {
-    grantIfCorrectDays()
-  }
-}
-def grantIfCorrectDays() {
-  if (canStartAutomatically()) {
-    grantAccess()
+    // Start Date Time not set
+    return false
   }
 }
 
-def scheduleEndCheck() {
-  if (andOrTime) {
-    if (andOrTime == 'and') {
-      scheduledEnd()
-    } else if (andOrTime == 'or' && modeStart && isCorrectMode()) {
-      //do nothing, still in correct mode
-    } else {
-      scheduledEnd()
-    }
+def endDateTime() {
+  if (endDay && endMonth && endYear) {
+    def time = new Date().parse(smartThingsDateFormat(), endTime).format("'T'HH:mm:ss.SSSZ", timeZone(endTime))
+    return Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", "${endYear}-${endMonth}-${endDay}${time}")
   } else {
-    scheduledEnd()
+    // End Date Time not set
+    return false
   }
 }
 
-def scheduledEnd() {
-  def array = []
-  enabledUsersArray().each { user->
-    def userSlot = settings."userSlot${user}"
-    array << ["code${userSlot}", ""]
+def rightNow() {
+  def now = new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSSZ", location.timeZone)
+  return Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", now)
+}
+
+def isCorrectDay() {
+  def today = new Date().format("EEEE", location.timeZone)
+  log.debug "today: ${today}, days: ${days}"
+  if (!days || days.contains(today)) {
+    // if no days, assume every day
+    return true
   }
-  def json = new groovy.json.JsonBuilder(array).toString()
-  if (json != '[]') {
-    locks.updateCodes(json)
-    runIn(60*2, doPoll)
-  }
+  log.trace "should not allow access"
+  return false
 }
 
 def userSlotArray() {
@@ -465,18 +662,6 @@ def disabledUsersSlotArray() {
   return array
 }
 
-def canStartAutomatically() {
-  def today = new Date().format("EEEE", location.timeZone)
-  log.debug "today: ${today}, days: ${days}"
-
-  if (!days || days.contains(today)) {// if no days, assume every day
-    return true
-  }
-
-  log.trace "should not allow access"
-  return false
-}
-
 def codereturn(evt) {
   def codeNumber = evt.data.replaceAll("\\D+","")
   def codeSlot = evt.value
@@ -505,17 +690,14 @@ def usedUserSlot(usedSlot) {
 
 def codeUsed(evt) {
   def codeData = new JsonSlurper().parseText(evt.data)
-
   if(evt.value == "unlocked" && evt.data) {
     codeData = new JsonSlurper().parseText(evt.data)
-
     if(userSlotArray().contains(codeData.usedCode)) {
       def usedSlot = usedUserSlot(codeData.usedCode)
       def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       // increment usage
       state.codeUsage["code${usedSlot}"] = state.codeUsage["code${usedSlot}"] + 1
-
       if(settings."burnCode${usedSlot}") {
         locks.deleteCode(codeData.usedCode)
         runIn(60*2, doPoll)
@@ -557,7 +739,18 @@ def grantAccess() {
       array << ["code${userSlot}", ""]
     }
   }
-  resetCodeUsage()
+  def json = new groovy.json.JsonBuilder(array).toString()
+  if (json != '[]') {
+    locks.updateCodes(json)
+    runIn(60*2, doPoll)
+  }
+}
+def revokeAccess() {
+  def array = []
+  enabledUsersArray().each { user->
+    def userSlot = settings."userSlot${user}"
+    array << ["code${userSlot}", ""]
+  }
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
     locks.updateCodes(json)
@@ -600,7 +793,7 @@ def isActiveBurnCode(slot) {
 }
 
 def pollCodeReport(evt) {
-  def active = modeCheck()
+  def active = isAbleToStart()
   def codeData = new JsonSlurper().parseText(evt.data)
   def numberOfCodes = codeData.codes
   def userSlots = userSlotArray()
@@ -616,25 +809,25 @@ def pollCodeReport(evt) {
       if (active) {
         if (settings."userEnabled${usedSlot}" && isActiveBurnCode(usedSlot)) {
           if (code == settings."userCode${usedSlot}") {
-            // "Code is Active, We should be active. Nothing to do"
+            // Code is Active, We should be active. Nothing to do
           } else {
-            // "Code is incorrect, We should be active."
+            // Code is incorrect, We should be active.
             array << ["code${slot}", settings."userCode${usedSlot}"]
           }
         } else {
           if (code != '') {
-            // "Code is set, user is disabled, We should be disabled."
+            // Code is set, user is disabled, We should be disabled.
             array << ["code${slot}", ""]
           } else {
-            // "Code is not set, user is disabled. Nothing to do"
+            // Code is not set, user is disabled. Nothing to do
           }
         }
       } else {
         if (code != '') {
-          // "Code is set, We should be disabled."
+          // Code is set, We should be disabled.
           array << ["code${slot}", ""]
         } else {
-          // "Code is not active, We should be disabled. Nothing to do"
+          // Code is not active, We should be disabled. Nothing to do
         }
       }
     }
