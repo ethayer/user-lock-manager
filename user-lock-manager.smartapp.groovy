@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.3
+ *  User Lock Manager v3.4
  *
  *  Copyright 2015 Erik Thayer
  *

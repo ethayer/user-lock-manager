@@ -489,7 +489,7 @@ def poll() {
 }
 
 def reportAllCodes(state) {
-  def map = [ name: "reportAllCodes", data: state, displayed: true, isStateChange: true ]
+  def map = [ name: "reportAllCodes", data: state, displayed: false, isStateChange: false, type: "physical" ]
   sendEvent(map)
 }
 
