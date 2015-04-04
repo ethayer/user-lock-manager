@@ -58,7 +58,7 @@ def setupPage() {
     }
     section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
-        href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
+        href(name: "toUserPage$i", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
       }
     }
   }
@@ -66,7 +66,7 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"setupPage", title:"User Settings") {
-    def i = params.number
+    def i = params.number.toString().replaceAll('.0','').toInteger()
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
       input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
@@ -864,4 +864,3 @@ private sendMessage(msg) {
     sendSms(phone, msg)
   }
 }
-
