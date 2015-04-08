@@ -65,7 +65,7 @@ def setupPage() {
 }
 
 def userPage(params) {
-  dynamicPage(name:"setupPage", title:"User Settings") {
+  dynamicPage(name:"userPage", title:"User Settings") {
     def i = params.number.toString().replaceAll('.0','').toInteger()
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
