@@ -39,7 +39,7 @@ def rootPage() {
     if (locks) {
       section {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
-        href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: "", state: "")
+        href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Actions after Unlock")
       }
@@ -229,6 +229,46 @@ def setupPageDescription(){
     parts << settings."userName${i}"
   }
   return fancyString(parts)
+}
+
+def notificationPageDescription() {
+    def parts = []
+    def msg = ""
+    log.debug "${settings}"
+    if (settings.phone) {
+        parts << "SMS to ${phone}"
+    }
+    if (settings.sendevent) {
+        parts << "Event Notification"
+    }
+    if (settings.notification) {
+        parts << "Push Notification"
+    }
+    msg += fancyString(parts)
+    parts = []
+    
+    if (settings.notifyAccess) {
+        parts << "on entry"
+    }
+    if (settings.notifyAccessStart) {
+        parts << "when granting access"
+    }
+    if (settings.notifyAccessEnd) {
+        parts << "when revoking access"
+    }
+    if (settings.notificationStartTime) {
+        parts << "starting at ${settings.notificationStartTime}"
+    }
+    if (settings.notificationEndTime) {
+        parts << "ending at ${settings.notificationEndTime}"
+    }
+    if (parts.size()) {
+        msg += ": "
+        msg += fancyString(parts)
+    }
+    log.debug "parts: ${parts}"
+    log.debug "msg: ${msg}"
+    return msg
 }
 
 def calendarHrefDescription() {
