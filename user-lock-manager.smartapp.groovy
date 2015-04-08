@@ -97,7 +97,8 @@ def notificationPage() {
     section {
       input(name: "phone", type: "phone", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
       input(name: "notification", type: "bool", title: "Send A Push Notification", description: "Notification", required: false, submitOnChange: true)
-      if (phone != null || notification) {
+      input(name: "sendevent", type: "bool", title: "Send An Event Notification", description: "Event Notification", required: false, submitOnChange: true)
+      if (phone != null || notification || sendevent) {
         input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
         input(name: "notifyAccessStart", title: "when granting access", type: "bool", required: false)
         input(name: "notifyAccessEnd", title: "when revoking access", type: "bool", required: false)
@@ -862,5 +863,8 @@ private sendMessage(msg) {
   }
   if (phone) {
     sendSms(phone, msg)
+  }
+  if (sendevent) {
+    sendNotificationEvent(msg)
   }
 }
