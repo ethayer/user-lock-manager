@@ -311,7 +311,7 @@ def deviceLabel(device) {
 }
 
 def fancyString(listOfStrings) {
-
+  listOfStrings.removeAll([null])
   def fancify = { list ->
     return list.collect {
       def label = it
