@@ -37,3 +37,11 @@ Custom device types are not recommended.  Please use only the included device ty
 USE AT YOUR OWN RISK
 ---------------------
 It is possible that a user code deletion could fail.  Do not give door codes to people that you don't want access to your home or office, and watch notifications carefully.
+
+### Donations
+
+If this made your life easier, please consider donating.
+
+* Paypal- <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=LDYNH7HNKBWXJ&lc=US&item_name=Lock%20Code%20Manager%20Donation&item_number=40123&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donate_SM%2egif%3aNonHosted"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" alt="[paypal]" /></a>
+
+* [Google Wallet-](https://www.google.com/wallet/) Send to: thayer.er@gmail.com

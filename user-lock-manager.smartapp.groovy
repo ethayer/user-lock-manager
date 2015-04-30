@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.5
+ *  User Lock Manager v3.6
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -27,9 +27,11 @@ definition(
   page(name: "calendarPage")
   page(name: "resetAllCodeUsagePage")
   page(name: "resetCodeUsagePage")
+  page(name: "reEnableUserPage")
 }
 
 def rootPage() {
+  //reset errors on each load
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
 
     section("Which Locks?") {
@@ -53,12 +55,16 @@ def rootPage() {
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
     section("How many Users? (1-30)?") {
-      input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true
+      input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
       href(name: "toResetAllCodeUsage", title: "Reset Code Usage", page: "resetAllCodeUsagePage", description: "Tap to reset")
     }
     section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
-        href(name: "toUserPage$i", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
+        if (!state."userState${i}") {
+          //there's no values, so reset
+          resetCodeUsage(i)
+        }
+        href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
       }
     }
   }
@@ -66,7 +72,17 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
-    def i = params.number.toString().replaceAll('.0','').toInteger()
+    def i = params.number
+    if (!state."userState${i}") {
+      //there's no values, so reset
+      resetCodeUsage(i)
+    }
+    if (!state."userState${i}".enabled) {
+      section {
+        paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
+        href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
+      }
+    }
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
       input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
@@ -78,7 +94,7 @@ def userPage(params) {
     }
     section {
       href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
-      href(name: "toResetCodeUsage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
+      href(name: "toResetCodeUsagePage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
     }
   }
 }
@@ -177,19 +193,10 @@ def onUnlockPage() {
 def resetCodeUsagePage(params) {
   // do reset
   resetCodeUsage(params.number)
-  dynamicPage(name:"resetCodeUsagePage", title:"User Settings") {
-    def i = params.number
+  def i = params.number
+  dynamicPage(name:"resetCodeUsagePage", title:"User Usage Reset") {
     section {
       paragraph "User code usage has been reset."
-    }
-    section("Code #${i}") {
-      input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
-      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
-      input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
-    }
-    section {
-      input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
-      input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
     }
     section {
       href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
@@ -203,13 +210,23 @@ def resetAllCodeUsagePage() {
     section {
       paragraph "All user code usages have been reset."
     }
-    section("How many Users? (1-30)?") {
-      input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true
-    }
     section("Users") {
-      for (int i = 1; i <= settings.maxUsers; i++) {
-        href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
-      }
+      href(name: "toSetupPage", title: "Back to Users", page: "setupPage")
+      href(name: "toRootPage", title: "Main Page", page: "rootPage")
+    }
+  }
+}
+def reEnableUserPage(params) {
+  // do reset
+  enableUser(params.number)
+  lockErrorLoopReset()
+  def i = params.number
+  dynamicPage(name:"reEnableUserPage", title:"User re-enabled") {
+    section {
+      paragraph "User has been enabled."
+    }
+    section {
+      href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
     }
   }
 }
@@ -234,7 +251,6 @@ def setupPageDescription(){
 def notificationPageDescription() {
     def parts = []
     def msg = ""
-    log.debug "${settings}"
     if (settings.phone) {
         parts << "SMS to ${phone}"
     }
@@ -246,7 +262,7 @@ def notificationPageDescription() {
     }
     msg += fancyString(parts)
     parts = []
-    
+
     if (settings.notifyAccess) {
         parts << "on entry"
     }
@@ -266,8 +282,6 @@ def notificationPageDescription() {
         msg += ": "
         msg += fancyString(parts)
     }
-    log.debug "parts: ${parts}"
-    log.debug "msg: ${msg}"
     return msg
 }
 
@@ -299,15 +313,9 @@ def userHrefTitle(i) {
   return title
 }
 def userHrefDescription(i) {
-  if (!state.codeUsage) {
-    state.codeUsage = [:]
-  }
-  if (!state.codeUsage["code${i}"]) {
-    state.codeUsage["code${i}"] = 0
-  }
   def uc = settings."userCode${i}"
   def us = settings."userSlot${i}"
-  def usage = state?.codeUsage["code${i}"]
+  def usage = state."userState${i}".usage
   def description = ""
   if (us != null) {
     description += "Slot: ${us}"
@@ -325,7 +333,7 @@ def userHrefDescription(i) {
 }
 
 def userPageState(i) {
-  if (settings."userCode${i}" && settings."userEnabled${i}") {
+  if (settings."userCode${i}" && userIsEnabled(i)) {
     if (settings."burnCode${i}") {
       if (state.codeUsage."code${i}" > 0) {
         return 'incomplete'
@@ -340,6 +348,14 @@ def userPageState(i) {
     return 'incomplete'
   } else {
     return 'incomplete'
+  }
+}
+
+def userIsEnabled(i) {
+  if (settings."userEnabled${i}" && state."userState${i}".enabled) {
+    return true
+  } else {
+    return false
   }
 }
 
@@ -414,7 +430,6 @@ def updated() {
 private initialize() {
   unsubscribe()
   unschedule()
-
   if (startTime && !startDateTime()) {
     log.debug "scheduling access routine to run at ${startTime}"
     schedule(startTime, "reconcileCodesStart")
@@ -445,16 +460,35 @@ private initialize() {
 
   revokeDisabledUsers()
   reconcileCodes()
+  lockErrorLoopReset()
+  log.debug "state: ${state}"
 }
 
 def resetAllCodeUsage() {
-  state.codeUsage = [:]
   for (int i = 1; i <= settings.maxUsers; i++) {
-    state.codeUsage."code${i}" = 0
+    lockErrorLoopReset()
+    resetCodeUsage(i)
   }
+  log.debug "reseting all code usage"
 }
 def resetCodeUsage(i) {
-  state.codeUsage."code${i}" = 0
+  if(state."userState${i}" == null) {
+    state."userState${i}" = [:]
+    state."userState${i}".enabled = true
+  }
+  state."userState${i}".usage = 0
+}
+def enableUser(i) {
+  state."userState${i}".enabled = true
+}
+def lockErrorLoopReset() {
+  state.error_loop_count = 0
+  def i = 0
+  locks.each { lock->
+    i = i + 1
+    state."lock${i}" = [:]
+    state."lock${i}".error_loop = false
+  }
 }
 
 def locationHandler(evt) {
@@ -629,7 +663,7 @@ def isInScheduledTime() {
 }
 
 def startDateTime() {
-  if (startDay && startMonth && startYear) {
+  if (startDay && startMonth && startYear && startTime) {
     def time = new Date().parse(smartThingsDateFormat(), startTime).format("'T'HH:mm:ss.SSSZ", timeZone(startTime))
     return Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", "${startYear}-${startMonth}-${startDay}${time}")
   } else {
@@ -639,7 +673,7 @@ def startDateTime() {
 }
 
 def endDateTime() {
-  if (endDay && endMonth && endYear) {
+  if (endDay && endMonth && endYear && endTime) {
     def time = new Date().parse(smartThingsDateFormat(), endTime).format("'T'HH:mm:ss.SSSZ", timeZone(endTime))
     return Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", "${endYear}-${endMonth}-${endDay}${time}")
   } else {
@@ -675,7 +709,7 @@ def userSlotArray() {
 def enabledUsersArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userEnabled${i}" == true) {
+    if (userIsEnabled(i)) {
       array << i
     }
   }
@@ -684,7 +718,7 @@ def enabledUsersArray() {
 def enabledUsersSlotArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userEnabled${i}" == true) {
+    if (userIsEnabled(i)) {
       def userSlot = settings."userSlot${i}"
       array << userSlot
     }
@@ -695,7 +729,7 @@ def enabledUsersSlotArray() {
 def disabledUsersSlotArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userEnabled${i}" != true) {
+    if (!userIsEnabled(i)) {
       def userSlot = settings."userSlot${i}"
       array << userSlot
     }
@@ -738,7 +772,7 @@ def codeUsed(evt) {
       def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       // increment usage
-      state.codeUsage["code${usedSlot}"] = state.codeUsage["code${usedSlot}"] + 1
+      state."userState${usedSlot}".usage = state."userState${usedSlot}".usage + 1
       if(settings."burnCode${usedSlot}") {
         locks.deleteCode(codeData.usedCode)
         runIn(60*2, doPoll)
@@ -751,11 +785,8 @@ def codeUsed(evt) {
 
 def revokeDisabledUsers() {
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userEnabled${i}" != true) {
-      def userSlot = settings."userSlot${i}"
-      array << ["code${userSlot}", ""]
-    }
+  disabledUsersSlotArray().each { slot ->
+    array << ["code${slot}", ""]
   }
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
@@ -766,6 +797,9 @@ def revokeDisabledUsers() {
 
 def doPoll() {
   // this gets codes if custom device is installed
+  if (!allCodesDone()) {
+    state.error_loop_count = state.error_loop_count + 1
+  }
   locks.poll()
 }
 
@@ -848,7 +882,7 @@ def pollCodeReport(evt) {
       def usedSlot = usedUserSlot(slot)
 
       if (active) {
-        if (settings."userEnabled${usedSlot}" && isActiveBurnCode(usedSlot)) {
+        if (userIsEnabled(usedSlot) && isActiveBurnCode(usedSlot)) {
           if (code == settings."userCode${usedSlot}") {
             // Code is Active, We should be active. Nothing to do
           } else {
@@ -873,16 +907,63 @@ def pollCodeReport(evt) {
       }
     }
   }
-  def json = new groovy.json.JsonBuilder(array).toString()
-  if (json != '[]') {
-    locks.each() { lock ->
-      if (lock.id == evt.deviceId) {
-        log.debug "sendCodes fix is: ${json}"
-        locks.updateCodes(json)
-        runIn(60*2, doPoll)
-      }
+  def i = 0
+  def currentLockNumber = 0
+  def currentLock = [:]
+  locks.each { lock->
+    i = i + 1
+    if (lock.id == evt.deviceId) {
+      currentLock = lock
+      currentLockNumber = i
     }
   }
+  def json = new groovy.json.JsonBuilder(array).toString()
+  if (json != '[]') {
+    runIn(60*2, doPoll)
+
+    //Lock is in an error state
+    state."lock${currentLockNumber}".error_loop = true
+    def error_number = state.error_loop_count
+
+    if (error_number <= 9) {
+      log.debug "sendCodes fix is: ${json}"
+      currentLock.updateCodes(json)
+    } else {
+      log.debug "kill fix is: ${json}"
+      currentLock.updateCodes(json)
+      json = new JsonSlurper().parseText(json)
+      def n = 0
+      json.each { code ->
+        n = code[0][4..-1].toInteger()
+        def usedSlot = usedUserSlot(n)
+        def name = settings."userName${usedSlot}"
+        log.debug "disable: ${n}"
+        if (state."userState${usedSlot}".enabled) {
+          state."userState${usedSlot}".enabled = false
+          send("Controller failed to set code for ${name}")
+        }
+      }
+    }
+  } else {
+    state."lock${currentLockNumber}".error_loop = false
+    if (allCodesDone) {
+      lockErrorLoopReset()
+    } else {
+      runIn(60, doPoll)
+    }
+  }
+}
+
+def allCodesDone() {
+  def i = 0
+  def codeComplete = true
+  locks.each { lock->
+    i++
+    if (state."lock${i}".error_loop == true) {
+      codeComplete = false
+    }
+  }
+  return codeComplete
 }
 
 private send(msg) {
