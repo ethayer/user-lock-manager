@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.6
+ *  User Lock Manager v3.6.1
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -352,7 +352,7 @@ def userPageState(i) {
 }
 
 def userIsEnabled(i) {
-  if (settings."userEnabled${i}" && state."userState${i}".enabled) {
+  if (settings."userEnabled${i}" && state."userState${i}".enabled && (settings."userCode${i}" != null)) {
     return true
   } else {
     return false
@@ -428,6 +428,7 @@ def updated() {
 }
 
 private initialize() {
+  log.debug "Settings: ${settings}"
   unsubscribe()
   unschedule()
   if (startTime && !startDateTime()) {
@@ -701,7 +702,7 @@ def isCorrectDay() {
 def userSlotArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
-    array << settings."userSlot${i}"
+    array << settings."userSlot${i}".toInteger()
   }
   return array
 }
@@ -859,7 +860,7 @@ def isManualUnlock(codeData) {
 }
 
 def isActiveBurnCode(slot) {
-  if (settings."burnCode${slot}" && state.codeUsage["code${slot}"] > 0) {
+  if (settings."burnCode${slot}" && state."userState${slot}".usage > 0) {
     return false
   } else {
     // not a burn code / not yet used
@@ -874,11 +875,10 @@ def pollCodeReport(evt) {
   def userSlots = userSlotArray()
 
   def array = []
-
-  (1..numberOfCodes).each { n->
-    def code = codeData."code${n}"
-    def slot = n
+  (1..numberOfCodes).each { slot->
+    slot = slot.toInteger()
     if (userSlots.contains(slot)) {
+      def code = codeData."code${slot}"
       def usedSlot = usedUserSlot(slot)
 
       if (active) {
@@ -924,7 +924,6 @@ def pollCodeReport(evt) {
     //Lock is in an error state
     state."lock${currentLockNumber}".error_loop = true
     def error_number = state.error_loop_count
-
     if (error_number <= 9) {
       log.debug "sendCodes fix is: ${json}"
       currentLock.updateCodes(json)
