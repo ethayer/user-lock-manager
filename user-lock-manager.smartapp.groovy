@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.6.1
+ *  User Lock Manager v3.7
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -43,7 +43,7 @@ def rootPage() {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
-        href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Actions after Unlock")
+        href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Global Hello Home")
       }
       section {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
@@ -73,28 +73,46 @@ def setupPage() {
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
     def i = params.number
-    if (!state."userState${i}") {
-      //there's no values, so reset
-      resetCodeUsage(i)
-    }
-    if (!state."userState${i}".enabled) {
-      section {
-        paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
-        href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
+    if (i != null) {
+      if (!state."userState${i}") {
+        //there's no values, so reset
+        resetCodeUsage(i)
       }
-    }
-    section("Code #${i}") {
-      input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
-      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
-      input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
-    }
-    section {
-      input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
-      input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
-    }
-    section {
-      href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
-      href(name: "toResetCodeUsagePage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
+      if (!state."userState${i}".enabled) {
+        section {
+          paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
+          href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
+        }
+      }
+      section("Code #${i}") {
+        input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
+        input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
+        input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
+      }
+      section {
+        input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
+        input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
+        def phrases = location.helloHome?.getPhrases()*.label
+        if (phrases) {
+          phrases.sort()
+          input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
+          if(settings."userHomePhrases${i}" != null) {
+            input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
+          }
+          if(settings."userHomePhrases${i}" != null) {
+            input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
+          }
+        }
+      }
+      section {
+        href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
+        href(name: "toResetCodeUsagePage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
+      }
+    } else {
+      section {
+        paragraph "Page has been refreshed, please go back to users page."
+        href(name: "toSetupPage", title: "Back", page: "setupPage")
+      }
     }
   }
 }
@@ -176,7 +194,7 @@ def calendarPage() {
 }
 
 def onUnlockPage() {
-  dynamicPage(name:"onUnlockPage", title:"Initiate Actions") {
+  dynamicPage(name:"onUnlockPage", title:"Global Actions (Any Code)") {
     section("Actions") {
       def phrases = location.helloHome?.getPhrases()*.label
       if (phrases) {
@@ -454,10 +472,6 @@ private initialize() {
   subscribe(locks, "codeReport", codereturn)
   subscribe(locks, "lock", codeUsed)
   subscribe(locks, "reportAllCodes", pollCodeReport, [filterEvents:false])
-
-  if (homePhrases) {
-    subscribe(locks, "lock", performActions)
-  }
 
   revokeDisabledUsers()
   reconcileCodes()
@@ -774,6 +788,24 @@ def codeUsed(evt) {
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       // increment usage
       state."userState${usedSlot}".usage = state."userState${usedSlot}".usage + 1
+      if(settings."userHomePhrases${usedSlot}") {
+        // Specific User Hello Home
+        if (settings."userNoRunPresence${usedSlot}" && settings."userDoRunPresence${usedSlot}" == null) {
+          if (!anyoneHome(settings."userNoRunPresence${usedSlot}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+          }
+        } else if (settings."userDoRunPresence${usedSlot}" && settings."userNoRunPresence${usedSlot}" == null) {
+          if (anyoneHome(settings."userDoRunPresence${usedSlot}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+          }
+        } else if (settings."userDoRunPresence${usedSlot}" && settings."userNoRunPresence${usedSlot}") {
+          if (anyoneHome(settings."userDoRunPresence${usedSlot}") && !anyoneHome(settings."userNoRunPresence${usedSlot}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+          }
+        } else {
+          location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+        }
+      }
       if(settings."burnCode${usedSlot}") {
         locks.deleteCode(codeData.usedCode)
         runIn(60*2, doPoll)
@@ -782,7 +814,21 @@ def codeUsed(evt) {
       send(message)
     }
   }
+  if (homePhrases) {
+    performActions(evt)
+  }
 }
+
+def performActions(evt) {
+  if(evt.value == "unlocked" && evt.data) {
+    def codeData = new JsonSlurper().parseText(evt.data)
+    if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
+      // Global Hello Home
+      location.helloHome.execute(homePhrases)
+    }
+  }
+}
+
 
 def revokeDisabledUsers() {
   def array = []
@@ -831,16 +877,6 @@ def revokeAccess() {
   if (json != '[]') {
     locks.updateCodes(json)
     runIn(60*2, doPoll)
-  }
-}
-
-def performActions(evt) {
-  def message = ""
-  if(evt.value == "unlocked" && evt.data) {
-    def codeData = new JsonSlurper().parseText(evt.data)
-    if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
-      location.helloHome.execute(settings.homePhrases)
-    }
   }
 }
 
@@ -926,6 +962,8 @@ def pollCodeReport(evt) {
     def error_number = state.error_loop_count
     if (error_number <= 9) {
       log.debug "sendCodes fix is: ${json}"
+      log.debug "Settings: ${settings}"
+      log.debug "State: ${state}"
       currentLock.updateCodes(json)
     } else {
       log.debug "kill fix is: ${json}"
@@ -963,6 +1001,14 @@ def allCodesDone() {
     }
   }
   return codeComplete
+}
+
+private anyoneHome(sensors) {
+  def result = false
+  if(sensors.findAll { it?.currentPresence == "present" }) {
+    result = true
+  }
+  result
 }
 
 private send(msg) {
