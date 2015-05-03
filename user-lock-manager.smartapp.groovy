@@ -199,8 +199,10 @@ def onUnlockPage() {
       def phrases = location.helloHome?.getPhrases()*.label
       if (phrases) {
         phrases.sort()
-        input name: "homePhrases", type: "enum", title: "Home Mode Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+        input name: "homePhrases", type: "enum", title: "Home Mode Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true, submitOnChange: true
         if (homePhrases) {
+          input "noRunPresence", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false
+          input "doRunPresence", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false
           input name: "manualUnlock", title: "Initiate phrase on manual unlock also?", type: "bool", defaultValue: false, refreshAfterSelection: true
         }
       }
@@ -824,7 +826,21 @@ def performActions(evt) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
       // Global Hello Home
-      location.helloHome.execute(homePhrases)
+      if (noRunPresence && doRunPresence == null) {
+        if (!anyoneHome(noRunPresence)) {
+          location.helloHome.execute(homePhrases)
+        }
+      } else if (doRunPresence && noRunPresence == null) {
+        if (anyoneHome(doRunPresence)) {
+          location.helloHome.execute(homePhrases)
+        }
+      } else if (doRunPresence && noRunPresence) {
+        if (anyoneHome(doRunPresence) && !anyoneHome(noRunPresence)) {
+          location.helloHome.execute(homePhrases)
+        }
+      } else {
+       location.helloHome.execute(homePhrases)
+      }
     }
   }
 }
