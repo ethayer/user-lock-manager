@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.3
+ *  User Lock Manager v3.7.4
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -56,14 +56,13 @@ def rootPage() {
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
     if (maxUsers > 0) {
-      section("Users") {
-        for (int i = 1; i <= settings.maxUsers; i++) {
-          i = i.toString().replaceAll('.0','').toInteger()
-          if (!state."userState${i}") {
+      section('Users') {
+        (1..maxUsers).each { user->
+          if (!state."userState${user}") {
             //there's no values, so reset
-            resetCodeUsage(i)
+            resetCodeUsage(user)
           }
-          href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
+          href(name: "toUserPage${user}", page: "userPage", params: [number: user], required: false, description: userHrefDescription(user), title: userHrefTitle(user), state: userPageState(user) )
         }
       }
       section {
