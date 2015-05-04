@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7
+ *  User Lock Manager v3.7.1
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -72,11 +72,12 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
-    def i = params.number
-    if (i != null) {
-      if (!state."userState${i}") {
-        //there's no values, so reset
-        resetCodeUsage(i)
+    if (params != null) {
+      def i = 0
+      if (params.number) {
+        i = params.number.toString().replaceAll('.0','').toInteger()
+      } else {
+        i = params.params.number.toString().replaceAll('.0','').toInteger()
       }
       if (!state."userState${i}".enabled) {
         section {
@@ -85,9 +86,9 @@ def userPage(params) {
         }
       }
       section("Code #${i}") {
-        input(name: "userName${i}", type: "text", title: "Name for User", required: true, defaultValue: settings."userName${i}")
+        input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
         input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
-        input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", required: true, defaultValue: preSlectedCode(i))
+        input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
       }
       section {
         input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
