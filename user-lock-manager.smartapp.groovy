@@ -97,7 +97,7 @@ def userPage(params) {
         def phrases = location.helloHome?.getPhrases()*.label
         if (phrases) {
           phrases.sort()
-          input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
+          input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true, submitOnChange: true
           if(settings."userHomePhrases${i}" != null) {
             input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
           }
