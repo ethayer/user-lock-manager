@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.2
+ *  User Lock Manager v3.7.3
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -40,6 +40,7 @@ def rootPage() {
 
     if (locks) {
       section {
+        input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
@@ -54,18 +55,23 @@ def rootPage() {
 
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
-    section("How many Users? (1-30)?") {
-      input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
-      href(name: "toResetAllCodeUsage", title: "Reset Code Usage", page: "resetAllCodeUsagePage", description: "Tap to reset")
-    }
-    section("Users") {
-      for (int i = 1; i <= settings.maxUsers; i++) {
-        i = i.toString().replaceAll('.0','').toInteger()
-        if (!state."userState${i}") {
-          //there's no values, so reset
-          resetCodeUsage(i)
+    if (maxUsers > 0) {
+      section("Users") {
+        for (int i = 1; i <= settings.maxUsers; i++) {
+          i = i.toString().replaceAll('.0','').toInteger()
+          if (!state."userState${i}") {
+            //there's no values, so reset
+            resetCodeUsage(i)
+          }
+          href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
         }
-        href(name: "toUserPage", page: "userPage", params: [number: i], required: false, description: userHrefDescription(i), title: userHrefTitle(i), state: userPageState(i) )
+      }
+      section {
+        href(name: "toResetAllCodeUsage", title: "Reset Code Usage", page: "resetAllCodeUsagePage", description: "Tap to reset")
+      }
+    } else {
+      section("Users") {
+        paragraph "Users are set to zero.  Please go back to the main page and change the number of users to at least 1."
       }
     }
   }
@@ -98,12 +104,8 @@ def userPage(params) {
         if (phrases) {
           phrases.sort()
           input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
-          if(settings."userHomePhrases${i}" != null) {
-            input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
-          }
-          if(settings."userHomePhrases${i}" != null) {
-            input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
-          }
+          input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
+          input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
         }
       }
       section {
