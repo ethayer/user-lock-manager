@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.1
+ *  User Lock Manager v3.7.2
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -60,6 +60,7 @@ def setupPage() {
     }
     section("Users") {
       for (int i = 1; i <= settings.maxUsers; i++) {
+        i = i.toString().replaceAll('.0','').toInteger()
         if (!state."userState${i}") {
           //there's no values, so reset
           resetCodeUsage(i)
@@ -72,7 +73,7 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
-    if (params != null) {
+    if (params?.number || params?.params?.number) {
       def i = 0
       if (params.number) {
         i = params.number.toString().replaceAll('.0','').toInteger()
@@ -373,7 +374,7 @@ def userPageState(i) {
 }
 
 def userIsEnabled(i) {
-  if (settings."userEnabled${i}" && state."userState${i}".enabled && (settings."userCode${i}" != null)) {
+  if (settings."userEnabled${i}" && (settings."userCode${i}" != null) && (state."userState${i}".enabled != false)) {
     return true
   } else {
     return false
@@ -774,7 +775,7 @@ def codereturn(evt) {
 def usedUserSlot(usedSlot) {
   def slot = ''
   for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userSlot${i}" == usedSlot) {
+    if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
       return i
     }
   }
@@ -928,35 +929,31 @@ def pollCodeReport(evt) {
   def userSlots = userSlotArray()
 
   def array = []
-  (1..numberOfCodes).each { slot->
-    slot = slot.toInteger()
-    if (userSlots.contains(slot)) {
-      def code = codeData."code${slot}"
-      def usedSlot = usedUserSlot(slot)
-
-      if (active) {
-        if (userIsEnabled(usedSlot) && isActiveBurnCode(usedSlot)) {
-          if (code == settings."userCode${usedSlot}") {
-            // Code is Active, We should be active. Nothing to do
-          } else {
-            // Code is incorrect, We should be active.
-            array << ["code${slot}", settings."userCode${usedSlot}"]
-          }
+  (1..maxUsers).each { user->
+    def code = codeData."code${user}"
+    def usedSlot = usedUserSlot(user)
+    if (active) {
+      if (userIsEnabled(usedSlot) && isActiveBurnCode(usedSlot)) {
+        if (code == settings."userCode${usedSlot}") {
+          // Code is Active, We should be active. Nothing to do
         } else {
-          if (code != '') {
-            // Code is set, user is disabled, We should be disabled.
-            array << ["code${slot}", ""]
-          } else {
-            // Code is not set, user is disabled. Nothing to do
-          }
+          // Code is incorrect, We should be active.
+          array << ["code${user}", settings."userCode${usedSlot}"]
         }
       } else {
         if (code != '') {
-          // Code is set, We should be disabled.
-          array << ["code${slot}", ""]
+          // Code is set, user is disabled, We should be disabled.
+          array << ["code${user}", ""]
         } else {
-          // Code is not active, We should be disabled. Nothing to do
+          // Code is not set, user is disabled. Nothing to do
         }
+      }
+    } else {
+      if (code != '') {
+        // Code is set, We should be disabled.
+        array << ["code${user}", ""]
+      } else {
+        // Code is not active, We should be disabled. Nothing to do
       }
     }
   }
@@ -976,11 +973,9 @@ def pollCodeReport(evt) {
 
     //Lock is in an error state
     state."lock${currentLockNumber}".error_loop = true
-    def error_number = state.error_loop_count
-    if (error_number <= 9) {
-      log.debug "sendCodes fix is: ${json}"
-      log.debug "Settings: ${settings}"
-      log.debug "State: ${state}"
+    def error_number = state.error_loop_count + 1
+    if (error_number <= 10) {
+      log.debug "sendCodes fix is: ${json} Error: ${error_number}/10"
       currentLock.updateCodes(json)
     } else {
       log.debug "kill fix is: ${json}"
