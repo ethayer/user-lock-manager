@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.4
+ *  User Lock Manager v3.7.5
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -551,6 +551,7 @@ def isAbleToStart() {
       checkDailySchedule()
     } else {
       // it's the wrong day
+      return false
     }
   } else {
     // no schedule
@@ -714,7 +715,7 @@ def isCorrectDay() {
     // if no days, assume every day
     return true
   }
-  log.trace "should not allow access"
+  log.trace "should not allow access - Not correct Day"
   return false
 }
 
@@ -740,7 +741,7 @@ def enabledUsersSlotArray() {
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (userIsEnabled(i)) {
       def userSlot = settings."userSlot${i}"
-      array << userSlot
+      array << userSlot.toInteger()
     }
   }
   return array
@@ -751,7 +752,7 @@ def disabledUsersSlotArray() {
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (!userIsEnabled(i)) {
       def userSlot = settings."userSlot${i}"
-      array << userSlot
+      array << userSlot.toInteger()
     }
   }
   return array
@@ -761,7 +762,7 @@ def codereturn(evt) {
   def codeNumber = evt.data.replaceAll("\\D+","")
   def codeSlot = evt.value
 
-  if (userSlotArray().contains(evt.integerValue)) {
+  if (userSlotArray().contains(evt.integerValue.toInteger())) {
     def userName = settings."userName${usedUserSlot(evt.integerValue)}"
     if (codeNumber == "") {
       def message = "${userName} no longer has access to ${evt.displayName}"
@@ -787,8 +788,8 @@ def codeUsed(evt) {
   def codeData = new JsonSlurper().parseText(evt.data)
   if(evt.value == "unlocked" && evt.data) {
     codeData = new JsonSlurper().parseText(evt.data)
-    if(userSlotArray().contains(codeData.usedCode)) {
-      def usedSlot = usedUserSlot(codeData.usedCode)
+    if(userSlotArray().contains(codeData.usedCode.toInteger())) {
+      def usedSlot = usedUserSlot(codeData.usedCode).toInteger()
       def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       // increment usage
