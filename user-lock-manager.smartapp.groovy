@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.6
+ *  User Lock Manager v3.7.7
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -722,7 +722,9 @@ def isCorrectDay() {
 def userSlotArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
-    array << settings."userSlot${i}".toInteger()
+    if (settings."userSlot${i}") {
+      array << settings."userSlot${i}".toInteger()
+    }
   }
   return array
 }
@@ -751,8 +753,9 @@ def disabledUsersSlotArray() {
   def array = []
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (!userIsEnabled(i)) {
-      def userSlot = settings."userSlot${i}"
-      array << userSlot.toInteger()
+      if (settings."userSlot${i}") {
+        array << settings."userSlot${i}".toInteger()
+      }
     }
   }
   return array
