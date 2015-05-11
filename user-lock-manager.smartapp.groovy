@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.5
+ *  User Lock Manager v3.7.6
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -761,15 +761,20 @@ def disabledUsersSlotArray() {
 def codereturn(evt) {
   def codeNumber = evt.data.replaceAll("\\D+","")
   def codeSlot = evt.value
-
-  if (userSlotArray().contains(evt.integerValue.toInteger())) {
-    def userName = settings."userName${usedUserSlot(evt.integerValue)}"
-    if (codeNumber == "") {
-      def message = "${userName} no longer has access to ${evt.displayName}"
-      send(message)
-    } else {
-      def message = "${userName} now has access to ${evt.displayName}"
-      send(message)
+  if (notifyAccessEnd || notifyAccessStart) {
+    if (userSlotArray().contains(evt.integerValue.toInteger())) {
+      def userName = settings."userName${usedUserSlot(evt.integerValue)}"
+      if (codeNumber == "") {
+        if (notifyAccessEnd) {
+          def message = "${userName} no longer has access to ${evt.displayName}"
+          send(message)
+        }
+      } else {
+        if (notifyAccessStart) {
+          def message = "${userName} now has access to ${evt.displayName}"
+          send(message)
+        }
+      }
     }
   }
 }
