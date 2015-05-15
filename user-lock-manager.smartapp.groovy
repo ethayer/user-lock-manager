@@ -1,18 +1,19 @@
 /**
- *  User Lock Manager v3.7.7
+ *  User Lock Manager v3.7.8
  *
  *  Copyright 2015 Erik Thayer
  *
  */
 definition(
-    name: "Door Manager",
-    namespace: "eyeonall",
-    author: "AJ",
-    description: "Door Manager",
-    category: "My Apps",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
+    name: "User Lock Manager",
+    namespace: "ethayer",
+    author: "Erik Thayer",
+    description: "This app allows you to change, delete, and schedule user access.",
+    category: "Safety & Security",
+    iconUrl: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanager.png",
+    iconX2Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx2.png",
+    iconX3Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx3.png")
+
 
 
  import groovy.json.JsonSlurper
