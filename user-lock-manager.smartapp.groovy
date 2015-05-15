@@ -35,7 +35,8 @@ definition(
 def rootPage() {
   //reset errors on each load
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
-
+    // have to do this in case the app is closed while modifying users
+    state.cookieCurrentUser = false
     section("Which Locks?") {
       input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
     }
@@ -52,11 +53,17 @@ def rootPage() {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
       }
     }
+    section {
+    	input name: "enableDebug", title: "Enable Debug Logging", type: "bool", required: false 
+    }
   }
 }
 
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
+    checkRecentUser()
+    // Set the current user to false since we already processed any previous ones
+    state.cookieCurrentUser = false
     if (maxUsers > 0) {
       section('Users') {
         (1..maxUsers).each { user->
@@ -1072,3 +1079,28 @@ private sendMessage(msg) {
   }
 }
 
+def checkRecentUser() {
+  if ( state.cookieCurrentUser ) {
+    debugLog("setupPage: ${state.cookieCurrentUser}")
+    def id = 0
+    def code = null
+    def enabled = false
+    debugLog("User ${state.cookieCurrentUser} recently updated")
+    if ( ! state.cookieCurrentUser.isNumber() ) {
+    	debugLog("${state.cookieCurrentUser} is NOT a number")
+        id = state.cookieCurrentUser.toInteger()
+    } else {
+        debugLog("${state.cookieCurrentUser} IS a number")
+        id = state.cookieCurrentUser
+    } 
+    if ( id > 0 ) {
+    	processUserCode(id,settings."userCode${id}",settings."userEnabled${id}",settings."locks${id}")
+    }
+  }
+}
+
+def debugLog(msg) {
+	if ( settings?.enableDebug ) {
+		log.debug msg
+    }
+}
