@@ -774,8 +774,7 @@ def disabledUsersSlotArray() {
 }
 
 def codereturn(evt) {
-  // move to JsonSlurper to support previous z-wave reporting device as well as the smartthings device and this updated device
-  def codeData = new JsonSlurper().parseText(evt.data)
+  // move to JsonSlurper to support previous z-wave reporting device as well as the smartthings device and additional info added to data
   def codeNumber = codeData.code
   def codeSlot = evt.value
   log.debug "Received event for slot #$codeSlot with code #$codeNumber"
