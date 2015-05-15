@@ -1,18 +1,19 @@
 /**
- *  User Lock Manager v3.7.8
+ *  User Lock Manager v3.7.7
  *
  *  Copyright 2015 Erik Thayer
  *
  */
 definition(
-    name: "User Lock Manager",
-    namespace: "ethayer",
-    author: "Erik Thayer",
-    description: "This app allows you to change, delete, and schedule user access.",
-    category: "Safety & Security",
-    iconUrl: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanager.png",
-    iconX2Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx2.png",
-    iconX3Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx3.png")
+    name: "Door Manager",
+    namespace: "eyeonall",
+    author: "AJ",
+    description: "Door Manager",
+    category: "My Apps",
+    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
+
 
  import groovy.json.JsonSlurper
  import groovy.json.JsonBuilder
@@ -80,21 +81,11 @@ def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
     if (params?.number || params?.params?.number) {
       def i = 0
-
-      // Assign params to i.  Sometimes parameters are double nested.
       if (params.number) {
-        i = params.number
+        i = params.number.toString().replaceAll('.0','').toInteger()
       } else {
-        i = params.params.number
+        i = params.params.number.toString().replaceAll('.0','').toInteger()
       }
-
-      //Make sure i is a round number, not a float.
-      if ( ! i.isNumber() ) {
-        i = i.toInteger();
-      } else if ( i.isNumber() ) {
-        i = Math.round(i * 100) / 100
-      }
-
       if (!state."userState${i}".enabled) {
         section {
           paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
@@ -772,8 +763,11 @@ def disabledUsersSlotArray() {
 }
 
 def codereturn(evt) {
-  def codeNumber = evt.data.replaceAll("\\D+","")
+  // move to JsonSlurper to support previous z-wave reporting device as well as the smartthings device and this updated device
+  def codeData = new JsonSlurper().parseText(evt.data)
+  def codeNumber = codeData.code
   def codeSlot = evt.value
+  log.debug "Received event for slot #$codeSlot with code #$codeNumber"
   if (notifyAccessEnd || notifyAccessStart) {
     if (userSlotArray().contains(evt.integerValue.toInteger())) {
       def userName = settings."userName${usedUserSlot(evt.integerValue)}"
@@ -943,6 +937,7 @@ def isActiveBurnCode(slot) {
 }
 
 def pollCodeReport(evt) {
+  //log.debug "Door Manager: pollCodeReport"
   def active = isAbleToStart()
   def codeData = new JsonSlurper().parseText(evt.data)
   def numberOfCodes = codeData.codes
@@ -1066,3 +1061,4 @@ private sendMessage(msg) {
     sendNotificationEvent(msg)
   }
 }
+

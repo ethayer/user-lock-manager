@@ -311,15 +311,21 @@ def zwaveEvent(UserCodeReport cmd) {
 			code = state["set$name"] ?: decrypt(state[name]) ?: "****"
 			state.remove("set$name".toString())
 		} else {
-            //added the whole state to the message since it contains all of the codes
-			map = [ name: "codeReport", value: cmd.userIdentifier, data: [ code: code ], state: state ]
+           	map = [ name: "codeReport", value: cmd.userIdentifier, data: [ code: code ] ]
 			map.descriptionText = "$device.displayName code $cmd.userIdentifier is set"
 			map.displayed = (cmd.userIdentifier != state.requestCode && cmd.userIdentifier != state.pollCode)
-			log.debug "Z-Wave Lock Rreporting: cmd: $cmd   state: $state"
-			//map.isStateChange = (code != decrypt(state[name]))
+            
+            //add the whole state to the message data since it contains all of the codes
+            state.each { entry ->
+    			//iterate through all the state entries and add them to the event data to be handled by application event handlers
+                //we COUL decrypt them before adding them but that would not be very secure would it??
+                //we will let the app developers take care of decryption.
+                map.data.put(entry.key, entry.value)  
+			}
             // since requestCode returns a code that has not changed the isStateChange is always false.
             // smarthings filters these events and the filterEvents does not seem to work
             // see http://community.smartthings.com/t/implementing-capability-lockcodes-need-guidance-on-a-couple-commands/4217/12
+            //ORIGINAL - map.isStateChange = (code != decrypt(state[name]))
             map.isStateChange = true
 		}
 		result << createEvent(map)
