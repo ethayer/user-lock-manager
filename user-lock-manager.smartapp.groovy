@@ -82,11 +82,21 @@ def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
     if (params?.number || params?.params?.number) {
       def i = 0
+
+      // Assign params to i.  Sometimes parameters are double nested.
       if (params.number) {
-        i = params.number.toString().replaceAll('.0','').toInteger()
+        i = params.number
       } else {
-        i = params.params.number.toString().replaceAll('.0','').toInteger()
+        i = params.params.number
       }
+
+      //Make sure i is a round number, not a float.
+      if ( ! i.isNumber() ) {
+        i = i.toInteger();
+      } else if ( i.isNumber() ) {
+        i = Math.round(i * 100) / 100
+      }
+
       if (!state."userState${i}".enabled) {
         section {
           paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
