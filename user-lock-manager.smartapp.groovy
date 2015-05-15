@@ -35,23 +35,32 @@ definition(
 def rootPage() {
   //reset errors on each load
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
+    // check to see if maxUsers is still being used
+    setMaxUserDefault()
     // have to do this in case the app is closed while modifying users
     state.cookieCurrentUser = false
     section("Which Locks?") {
       input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
     }
-
     if (locks) {
       section {
         input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
+        //input name: "startSlot", title: "Lock code slot to start at.", type: "number", multiple: false, defaultValue: 1, refreshAfterSelection: true, submitOnChange: true
+        //input name: "endSlot", title: "Lock code slot to end at.", type: "number", multiple: false, required: false, defaultValue: state.endSlot, refreshAfterSelection: true, submitOnChange: true
+      }
+    }
+
+    //if ( settings?.startSlot > 0 && settings?.endSlot > settings?.startSlot ) {
+      section {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Global Hello Home")
       }
-      section {
+    //}
+
+    section {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
-      }
     }
     section {
     	input name: "enableDebug", title: "Enable Debug Logging", type: "bool", required: false 
@@ -470,7 +479,7 @@ def updated() {
 }
 
 private initialize() {
-  log.debug "Settings: ${settings}"
+  debugLog("Settings: ${settings}")
   unsubscribe()
   unschedule()
   if (startTime && !startDateTime()) {
@@ -1094,13 +1103,26 @@ def checkRecentUser() {
         id = state.cookieCurrentUser
     } 
     if ( id > 0 ) {
-    	processUserCode(id,settings."userCode${id}",settings."userEnabled${id}",settings."locks${id}")
+	debugLog("Processing slot #$id")
+    	//processUserCode(id,settings."userCode${id}",settings."userEnabled${id}",settings."locks${id}")
     }
   }
 }
 
-def debugLog(msg) {
-	if ( settings?.enableDebug ) {
-		log.debug msg
+def setMaxUserDefault() {
+    debugLog("Checking maxUsers")
+    if ( settings?.endSlot > 0 ) {
+        debugLog("endSlot is set at ${settings.endSlot}")
+    	state.endSlot = settings.endSlot
+    } else if ( settings?.maxUsers > 0 ) {
+        debugLog("maxUsers is set at ${settings.maxUsers}")
+    	state.endSlot = settings.maxUsers
     }
 }
+
+def debugLog(msg) {
+	if ( settings?.enableDebug ) {
+		log.debug "USER-LOCK-MANAGER: $msg"
+    }
+}
+
