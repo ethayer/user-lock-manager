@@ -38,7 +38,7 @@ def rootPage() {
     // check to see if maxUsers is still being used
     setMaxUserDefault()
     // have to do this in case the app is closed while modifying users
-    state.cookieCurrentUser = false
+    clearRefreshCookie()
     section("Which Locks?") {
       input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, refreshAfterSelection: true, submitOnChange: true
     }
@@ -75,8 +75,8 @@ def rootPage() {
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
     checkRecentUser()
-    // Set the current user to false since we already processed any previous ones
-    state.cookieCurrentUser = false
+    // Set the current user to false since we already processed the last one if neccessary
+    clearRefreshCookie()
     if (settings?.startSlot > 0 && settings?.endSlot > settings?.startSlot ) {
       section('Users') {
         (settings.startSlot..settings.endSlot).each { user->
@@ -118,10 +118,7 @@ def userPage(params) {
       } else if ( i.isNumber() ) {
         i = Math.round(i * 100) / 100
       }
-	  state.cookieCurrentUser = i
-      state.cookieCurrentUserEnabled = settings?."userEnabled${i}"
-      state.cookieCurrentUserCode = settings?."userCode${i}"
-      
+      setRefreshCookie(i)
       if (!state."userState${i}".enabled) {
         section {
           paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
@@ -135,7 +132,7 @@ def userPage(params) {
       }
       section {
         input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
-        input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
+        input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}", refreshAfterSelection: true, submitOnChange: true)
         def phrases = location.helloHome?.getPhrases()*.label
         if (phrases) {
           phrases.sort()
@@ -512,6 +509,7 @@ private initialize() {
   subscribe(location, locationHandler)
 
   subscribe(locks, "codeReport", codereturn)
+  subscribe(locks, "codeChanged", codeChanged)
   subscribe(locks, "lock", codeUsed)
   subscribe(locks, "reportAllCodes", pollCodeReport, [filterEvents:false])
 
@@ -805,24 +803,44 @@ def codereturn(evt) {
   def codeData = new JsonSlurper().parseText(evt.data)
   def codeNumber = codeData.code
   def codeSlot = evt.value
-  log.debug "Received event for slot #$codeSlot with code #$codeNumber"
+  debugLog "Received codeReport event for slot #$codeSlot with code #$codeNumber: ${evt}"
+  notifyOnUpdate(codeNumber,codeSlot,evt.displayName)
+}
+
+def codeChanged(evt) {
+  def codeSlot = evt.value
+  def codeData = null
+  def codeNumber = ""
+  // codeChange event does not have data as far as I can tell but still check to make sure. 
+  if ( evt?.data ) {
+  	codeData = new JsonSlurper().parseText(evt.data)
+    codeNumber = codeData.code
+  } else if ( settings?."userCode${codeSlot}" != "" ) {
+  	codeNumber = settings."userCode${codeSlot}"
+  }
+  debugLog "Received codeChanged event for slot #$codeSlot with code #$codeNumber"
+  notifyOnUpdate(codeNumber,codeSlot,evt.displayName)
+}
+
+def notifyOnUpdate(codeNumber, slot, displayName) {
   if (notifyAccessEnd || notifyAccessStart) {
-    if (userSlotArray().contains(evt.integerValue.toInteger())) {
-      def userName = settings."userName${usedUserSlot(evt.integerValue)}"
+    if (userSlotArray().contains(slot.toInteger())) {
+      def userName = settings."userName${usedUserSlot(slot)}"
       if (codeNumber == "") {
         if (notifyAccessEnd) {
-          def message = "${userName} no longer has access to ${evt.displayName}"
+          def message = "${userName} no longer has access to ${displayName}"
           send(message)
         }
       } else {
         if (notifyAccessStart) {
-          def message = "${userName} now has access to ${evt.displayName}"
+          def message = "${userName}'s access to ${displayName} as been enabled/updated"
           send(message)
         }
       }
     }
   }
 }
+
 
 def usedUserSlot(usedSlot) {
   def slot = ''
@@ -1103,19 +1121,13 @@ private sendMessage(msg) {
 }
 
 def checkRecentUser() {
-  debugLog("setupPage: Checking state.cookieCurrentUser")
+  debugLog("checkRecentUse: Checking state.cookieCurrentUser: ${state}")
   if ( state.cookieCurrentUser ) {
-    debugLog("setupPage: ${state.cookieCurrentUser}")
-    def id = 0
-    def code = null
-    def enabled = false
-    debugLog("User ${state.cookieCurrentUser} recently updated")
-    if ( ! state.cookieCurrentUser.isNumber() ) {
-    	debugLog("${state.cookieCurrentUser} is NOT a number")
+    debugLog "Returned from user ${state.cookieCurrentUser} settings page"
+    def id = state.cookieCurrentUser
+    if ( ! id.isNumber() ) {
+    	debugLog("${id} is NOT a number")
         id = state.cookieCurrentUser.toInteger()
-    } else {
-        debugLog("${state.cookieCurrentUser} IS a number")
-        id = state.cookieCurrentUser
     } 
     if ( id > 0 ) {
 	debugLog("Processing slot #$id")
@@ -1126,20 +1138,34 @@ def checkRecentUser() {
 
 def processUserCode(id) {
     debugLog "Processing code: $id " + settings."userCode${id}"
-    def code = settings."userCode${id}"
-    if ( code?.isNumber() ) {
-	code = settings."userCode${id}".toString()
-    }
-    if ( code && settings."userEnabled${id}" && state.cookieCurrentUserCode != settings."userCode${id}") {
-        debugLog "Setting code for $id"
-	locks.setCode(id, code)
-    } else if ( code && ! state.cookieCurrentUserEnabled && settings."userEnabled${id}" ) {
-    	debugLog "Setting code for $id"
-	locks.setCode(id, code)
-    } else if ( ! settings."userEnabled${id}" ) {
-    	debugLog "Deleting code for $id"
+    def newCode = settings?."userCode${id}"
+    def newEnabled = settings?."userEnabled${id}"
+    debugLog "Processing code: $id: $newCode : $newEnabled"
+    // if the user is not enabled, or the code is blank for some reason, we will issue the delete no matter what
+    if ( ! newEnabled || ! newCode || newCode == null ) {
+    	debugLog "Deleting code for user #${id}"
     	locks.deleteCode(id)
+        return
     }
+    // Enabled, make sure the code is a string
+    if ( newCode.isNumber() ) {
+		newCode = settings."userCode${id}".toString()
+    }
+    // user enabled, set the code anyway. isStateChange will be false so the event will be filtered
+    locks.setCode(id, newCode)
+}
+ 
+def setRefreshCookie(id) {
+      state.cookieCurrentUser = id
+      state.cookieCurrentUserEnabled = settings?."userEnabled${id}"
+      state.cookieCurrentUserCode = settings?."userCode${id}"
+
+}
+
+def clearRefreshCookie() {
+      state.cookieCurrentUser = null
+      state.cookieCurrentUserEnabled = null
+      state.cookieCurrentUserCode = null
 }
 
 def setMaxUserDefault() {
@@ -1159,7 +1185,3 @@ def debugLog(msg) {
     }
 }
 
-
-
-
- 
