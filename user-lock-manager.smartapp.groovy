@@ -5,8 +5,8 @@
  *
  */
 definition(
-    name: "User Lock Manager",
-    namespace: "ethayer",
+    name: "Front Door Manager",
+    namespace: "eyeonall",
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
     category: "Safety & Security",
@@ -40,24 +40,28 @@ def rootPage() {
     // have to do this in case the app is closed while modifying users
     state.cookieCurrentUser = false
     section("Which Locks?") {
-      input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
+      input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, refreshAfterSelection: true, submitOnChange: true
     }
     if (locks) {
       section {
-        input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
-        //input name: "startSlot", title: "Lock code slot to start at.", type: "number", multiple: false, defaultValue: 1, refreshAfterSelection: true, submitOnChange: true
-        //input name: "endSlot", title: "Lock code slot to end at.", type: "number", multiple: false, required: false, defaultValue: state.endSlot, refreshAfterSelection: true, submitOnChange: true
+        input name: "startSlot", title: "Lock code slot to start at.", type: "number", multiple: false, defaultValue: 1, refreshAfterSelection: true, submitOnChange: true
+        input name: "endSlot", title: "Lock code slot to end at.", type: "number", multiple: false, required: false, defaultValue: state.endSlot, refreshAfterSelection: true, submitOnChange: true
       }
     }
 
-    //if ( settings?.startSlot > 0 && settings?.endSlot > settings?.startSlot ) {
+    if ( settings?.startSlot > 0 && settings?.endSlot > settings?.startSlot ) {
+    //if ( maxUsers > 0 ) {
       section {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Global Hello Home")
       }
-    //}
+    } else {
+    	section {
+        	paragraph "Set a start code slot and an end code slot. The end code slot must be greater than the start code slot"
+        }
+    }
 
     section {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
@@ -73,9 +77,9 @@ def setupPage() {
     checkRecentUser()
     // Set the current user to false since we already processed any previous ones
     state.cookieCurrentUser = false
-    if (maxUsers > 0) {
+    if (settings?.startSlot > 0 && settings?.endSlot > settings?.startSlot ) {
       section('Users') {
-        (1..maxUsers).each { user->
+        (settings.startSlot..settings.endSlot).each { user->
           if (!state."userState${user}") {
             //there's no values, so reset
             resetCodeUsage(user)
@@ -96,14 +100,16 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
-    if (params?.number || params?.params?.number) {
+    if (params?.number || params?.params?.number || state.cookieCurrentUser ) {
       def i = 0
 
       // Assign params to i.  Sometimes parameters are double nested.
-      if (params.number) {
+      if (params?.number) {
         i = params.number
-      } else {
+      } else if ( params?.params?.number ) {
         i = params.params.number
+      } else {
+      	i = state.cookieCurrentUser
       }
 
       //Make sure i is a round number, not a float.
@@ -112,7 +118,10 @@ def userPage(params) {
       } else if ( i.isNumber() ) {
         i = Math.round(i * 100) / 100
       }
-
+	  state.cookieCurrentUser = i
+      state.cookieCurrentUserEnabled = settings?."userEnabled${i}"
+      state.cookieCurrentUserCode = settings?."userCode${i}"
+      
       if (!state."userState${i}".enabled) {
         section {
           paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
@@ -293,7 +302,7 @@ public humanReadableEndDate() {
 
 def setupPageDescription(){
   def parts = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     parts << settings."userName${i}"
   }
   return fancyString(parts)
@@ -386,7 +395,7 @@ def userHrefDescription(i) {
 def userPageState(i) {
   if (settings."userCode${i}" && userIsEnabled(i)) {
     if (settings."burnCode${i}") {
-      if (state.codeUsage."code${i}" > 0) {
+      if (state?.codeUsage?."code${i}" > 0) {
         return 'incomplete'
       } else {
         return 'complete'
@@ -474,13 +483,13 @@ def installed() {
 }
 
 def updated() {
-  log.debug "Updating 'Locks' with settings: ${settings}"
+  debugLog "Updating 'Locks' with settings: ${settings}"
+  unsubscribe()
   initialize()
 }
 
 private initialize() {
   debugLog("Settings: ${settings}")
-  unsubscribe()
   unschedule()
   if (startTime && !startDateTime()) {
     log.debug "scheduling access routine to run at ${startTime}"
@@ -513,7 +522,7 @@ private initialize() {
 }
 
 def resetAllCodeUsage() {
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     lockErrorLoopReset()
     resetCodeUsage(i)
   }
@@ -749,7 +758,7 @@ def isCorrectDay() {
 
 def userSlotArray() {
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     if (settings."userSlot${i}") {
       array << settings."userSlot${i}".toInteger()
     }
@@ -759,7 +768,7 @@ def userSlotArray() {
 
 def enabledUsersArray() {
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.endSlot; i <= settings.startSlot; i++) {
     if (userIsEnabled(i)) {
       array << i
     }
@@ -767,9 +776,11 @@ def enabledUsersArray() {
   return array
 }
 def enabledUsersSlotArray() {
+  debugLog("enabledUsersSlotArray")
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     if (userIsEnabled(i)) {
+      debugLog("Adding user ${i}")
       def userSlot = settings."userSlot${i}"
       array << userSlot.toInteger()
     }
@@ -779,7 +790,7 @@ def enabledUsersSlotArray() {
 
 def disabledUsersSlotArray() {
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     if (!userIsEnabled(i)) {
       if (settings."userSlot${i}") {
         array << settings."userSlot${i}".toInteger()
@@ -791,6 +802,7 @@ def disabledUsersSlotArray() {
 
 def codereturn(evt) {
   // move to JsonSlurper to support previous z-wave reporting device as well as the smartthings device and additional info added to data
+  def codeData = new JsonSlurper().parseText(evt.data)
   def codeNumber = codeData.code
   def codeSlot = evt.value
   log.debug "Received event for slot #$codeSlot with code #$codeNumber"
@@ -814,9 +826,11 @@ def codereturn(evt) {
 
 def usedUserSlot(usedSlot) {
   def slot = ''
-  for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
-      return i
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
+  	if ( settings?."userSlot${i}" && usedSlot ) {
+    	if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
+      		return i
+        }
     }
   }
   return slot
@@ -963,14 +977,14 @@ def isActiveBurnCode(slot) {
 }
 
 def pollCodeReport(evt) {
-  //log.debug "Door Manager: pollCodeReport"
   def active = isAbleToStart()
-  def codeData = new JsonSlurper().parseText(evt.data)
+  //def codeData = new JsonSlurper().parseText(evt.data)
+  def codeData = util.parseJson(evt.data)
   def numberOfCodes = codeData.codes
   def userSlots = userSlotArray()
-
+  debugLog "pollCodeReport $codeData"
   def array = []
-  (1..maxUsers).each { user->
+  (settings.startSlot..settings.endSlot).each { user->
     def code = codeData."code${user}"
     def usedSlot = usedUserSlot(user)
     if (active) {
@@ -1089,6 +1103,7 @@ private sendMessage(msg) {
 }
 
 def checkRecentUser() {
+  debugLog("setupPage: Checking state.cookieCurrentUser")
   if ( state.cookieCurrentUser ) {
     debugLog("setupPage: ${state.cookieCurrentUser}")
     def id = 0
@@ -1104,9 +1119,27 @@ def checkRecentUser() {
     } 
     if ( id > 0 ) {
 	debugLog("Processing slot #$id")
-    	//processUserCode(id,settings."userCode${id}",settings."userEnabled${id}",settings."locks${id}")
+	processUserCode(id)
     }
   }
+}
+
+def processUserCode(id) {
+    debugLog "Processing code: $id " + settings."userCode${id}"
+    def code = settings."userCode${id}"
+    if ( code?.isNumber() ) {
+	code = settings."userCode${id}".toString()
+    }
+    if ( code && settings."userEnabled${id}" && state.cookieCurrentUserCode != settings."userCode${id}") {
+        debugLog "Setting code for $id"
+	locks.setCode(id, code)
+    } else if ( code && ! state.cookieCurrentUserEnabled && settings."userEnabled${id}" ) {
+    	debugLog "Setting code for $id"
+	locks.setCode(id, code)
+    } else if ( ! settings."userEnabled${id}" ) {
+    	debugLog "Deleting code for $id"
+    	locks.deleteCode(id)
+    }
 }
 
 def setMaxUserDefault() {
@@ -1126,3 +1159,7 @@ def debugLog(msg) {
     }
 }
 
+
+
+
+ 
