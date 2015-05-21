@@ -251,9 +251,9 @@ def resetAllCodeUsagePage() {
 }
 def reEnableUserPage(params) {
   // do reset
-  enableUser(params.number)
+  def i = params.number.toString().replaceAll('.0','').toInteger()
+  enableUser(i)
   lockErrorLoopReset()
-  def i = params.number
   dynamicPage(name:"reEnableUserPage", title:"User re-enabled") {
     section {
       paragraph "User has been enabled."
