@@ -5,14 +5,16 @@
  *
  */
 definition(
-    name: "User Lock Manager",
-    namespace: "ethayer",
+    name: "Front Door Manager",
+    namespace: "eyeonall",
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
     category: "Safety & Security",
     iconUrl: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanager.png",
     iconX2Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx2.png",
     iconX3Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx3.png")
+
+
 
  import groovy.json.JsonSlurper
  import groovy.json.JsonBuilder
@@ -33,31 +35,51 @@ definition(
 def rootPage() {
   //reset errors on each load
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
-
+    // check to see if maxUsers is still being used
+    setMaxUserDefault()
+    // have to do this in case the app is closed while modifying users
+    clearRefreshCookie()
     section("Which Locks?") {
-      input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
+      input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, refreshAfterSelection: true, submitOnChange: true
     }
-
     if (locks) {
       section {
-        input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
+        input name: "startSlot", title: "Lock code slot to start at.", type: "number", multiple: false, defaultValue: 1, refreshAfterSelection: true, submitOnChange: true
+        input name: "endSlot", title: "Lock code slot to end at.", type: "number", multiple: false, required: false, defaultValue: state.endSlot, refreshAfterSelection: true, submitOnChange: true
+      }
+    }
+
+    if ( settings?.startSlot > 0 && settings?.endSlot > settings?.startSlot ) {
+    //if ( maxUsers > 0 ) {
+      section {
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Global Hello Home")
       }
-      section {
+    } else {
+    	section {
+        	paragraph "Set a start code slot and an end code slot. The end code slot must be greater than the start code slot"
+        }
+    }
+
+    section {
         label(title: "Label this SmartApp", required: false, defaultValue: "")
-      }
+    }
+    section {
+    	input name: "enableDebug", title: "Enable Debug Logging", type: "bool", required: false 
     }
   }
 }
 
 def setupPage() {
   dynamicPage(name:"setupPage", title:"User Settings") {
-    if (maxUsers > 0) {
+    checkRecentUser()
+    // Set the current user to false since we already processed the last one if neccessary
+    clearRefreshCookie()
+    if (settings?.startSlot > 0 && settings?.endSlot > settings?.startSlot ) {
       section('Users') {
-        (1..maxUsers).each { user->
+        (settings.startSlot..settings.endSlot).each { user->
           if (!state."userState${user}") {
             //there's no values, so reset
             resetCodeUsage(user)
@@ -78,14 +100,16 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
-    if (params?.number || params?.params?.number) {
+    if (params?.number || params?.params?.number || state.cookieCurrentUser ) {
       def i = 0
 
       // Assign params to i.  Sometimes parameters are double nested.
-      if (params.number) {
+      if (params?.number) {
         i = params.number
-      } else {
+      } else if ( params?.params?.number ) {
         i = params.params.number
+      } else {
+      	i = state.cookieCurrentUser
       }
 
       //Make sure i is a round number, not a float.
@@ -94,7 +118,7 @@ def userPage(params) {
       } else if ( i.isNumber() ) {
         i = Math.round(i * 100) / 100
       }
-
+      setRefreshCookie(i)
       if (!state."userState${i}".enabled) {
         section {
           paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
@@ -108,7 +132,7 @@ def userPage(params) {
       }
       section {
         input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
-        input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
+        input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}", refreshAfterSelection: true, submitOnChange: true)
         def phrases = location.helloHome?.getPhrases()*.label
         if (phrases) {
           phrases.sort()
@@ -275,7 +299,7 @@ public humanReadableEndDate() {
 
 def setupPageDescription(){
   def parts = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     parts << settings."userName${i}"
   }
   return fancyString(parts)
@@ -368,7 +392,7 @@ def userHrefDescription(i) {
 def userPageState(i) {
   if (settings."userCode${i}" && userIsEnabled(i)) {
     if (settings."burnCode${i}") {
-      if (state.codeUsage."code${i}" > 0) {
+      if (state?.codeUsage?."code${i}" > 0) {
         return 'incomplete'
       } else {
         return 'complete'
@@ -456,13 +480,13 @@ def installed() {
 }
 
 def updated() {
-  log.debug "Updating 'Locks' with settings: ${settings}"
+  debugLog "Updating 'Locks' with settings: ${settings}"
+  unsubscribe()
   initialize()
 }
 
 private initialize() {
-  log.debug "Settings: ${settings}"
-  unsubscribe()
+  debugLog("Settings: ${settings}")
   unschedule()
   if (startTime && !startDateTime()) {
     log.debug "scheduling access routine to run at ${startTime}"
@@ -485,6 +509,7 @@ private initialize() {
   subscribe(location, locationHandler)
 
   subscribe(locks, "codeReport", codereturn)
+  subscribe(locks, "codeChanged", codeChanged)
   subscribe(locks, "lock", codeUsed)
   subscribe(locks, "reportAllCodes", pollCodeReport, [filterEvents:false])
 
@@ -495,7 +520,7 @@ private initialize() {
 }
 
 def resetAllCodeUsage() {
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     lockErrorLoopReset()
     resetCodeUsage(i)
   }
@@ -731,7 +756,7 @@ def isCorrectDay() {
 
 def userSlotArray() {
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     if (settings."userSlot${i}") {
       array << settings."userSlot${i}".toInteger()
     }
@@ -741,7 +766,7 @@ def userSlotArray() {
 
 def enabledUsersArray() {
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.endSlot; i <= settings.startSlot; i++) {
     if (userIsEnabled(i)) {
       array << i
     }
@@ -749,9 +774,11 @@ def enabledUsersArray() {
   return array
 }
 def enabledUsersSlotArray() {
+  debugLog("enabledUsersSlotArray")
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     if (userIsEnabled(i)) {
+      debugLog("Adding user ${i}")
       def userSlot = settings."userSlot${i}"
       array << userSlot.toInteger()
     }
@@ -761,7 +788,7 @@ def enabledUsersSlotArray() {
 
 def disabledUsersSlotArray() {
   def array = []
-  for (int i = 1; i <= settings.maxUsers; i++) {
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
     if (!userIsEnabled(i)) {
       if (settings."userSlot${i}") {
         array << settings."userSlot${i}".toInteger()
@@ -772,19 +799,41 @@ def disabledUsersSlotArray() {
 }
 
 def codereturn(evt) {
-  def codeNumber = evt.data.replaceAll("\\D+","")
+  // move to JsonSlurper to support previous z-wave reporting device as well as the smartthings device and additional info added to data
+  def codeData = new JsonSlurper().parseText(evt.data)
+  def codeNumber = codeData.code
   def codeSlot = evt.value
+  debugLog "Received codeReport event for slot #$codeSlot with code #$codeNumber: ${evt}"
+  notifyOnUpdate(codeNumber,codeSlot,evt.displayName)
+}
+
+def codeChanged(evt) {
+  def codeSlot = evt.value
+  def codeData = null
+  def codeNumber = ""
+  // codeChange event does not have data as far as I can tell but still check to make sure. 
+  if ( evt?.data ) {
+  	codeData = new JsonSlurper().parseText(evt.data)
+    codeNumber = codeData.code
+  } else if ( settings?."userCode${codeSlot}" != "" ) {
+  	codeNumber = settings."userCode${codeSlot}"
+  }
+  debugLog "Received codeChanged event for slot #$codeSlot with code #$codeNumber"
+  notifyOnUpdate(codeNumber,codeSlot,evt.displayName)
+}
+
+def notifyOnUpdate(codeNumber, slot, displayName) {
   if (notifyAccessEnd || notifyAccessStart) {
-    if (userSlotArray().contains(evt.integerValue.toInteger())) {
-      def userName = settings."userName${usedUserSlot(evt.integerValue)}"
+    if (userSlotArray().contains(slot.toInteger())) {
+      def userName = settings."userName${usedUserSlot(slot)}"
       if (codeNumber == "") {
         if (notifyAccessEnd) {
-          def message = "${userName} no longer has access to ${evt.displayName}"
+          def message = "${userName} no longer has access to ${displayName}"
           send(message)
         }
       } else {
         if (notifyAccessStart) {
-          def message = "${userName} now has access to ${evt.displayName}"
+          def message = "${userName}'s access to ${displayName} as been enabled/updated"
           send(message)
         }
       }
@@ -792,11 +841,14 @@ def codereturn(evt) {
   }
 }
 
+
 def usedUserSlot(usedSlot) {
   def slot = ''
-  for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
-      return i
+  for (int i = settings.startSlot; i <= settings.endSlot; i++) {
+  	if ( settings?."userSlot${i}" && usedSlot ) {
+    	if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
+      		return i
+        }
     }
   }
   return slot
@@ -944,12 +996,13 @@ def isActiveBurnCode(slot) {
 
 def pollCodeReport(evt) {
   def active = isAbleToStart()
-  def codeData = new JsonSlurper().parseText(evt.data)
+  //def codeData = new JsonSlurper().parseText(evt.data)
+  def codeData = util.parseJson(evt.data)
   def numberOfCodes = codeData.codes
   def userSlots = userSlotArray()
-
+  debugLog "pollCodeReport $codeData"
   def array = []
-  (1..maxUsers).each { user->
+  (settings.startSlot..settings.endSlot).each { user->
     def code = codeData."code${user}"
     def usedSlot = usedUserSlot(user)
     if (active) {
@@ -1066,3 +1119,69 @@ private sendMessage(msg) {
     sendNotificationEvent(msg)
   }
 }
+
+def checkRecentUser() {
+  debugLog("checkRecentUse: Checking state.cookieCurrentUser: ${state}")
+  if ( state.cookieCurrentUser ) {
+    debugLog "Returned from user ${state.cookieCurrentUser} settings page"
+    def id = state.cookieCurrentUser
+    if ( ! id.isNumber() ) {
+    	debugLog("${id} is NOT a number")
+        id = state.cookieCurrentUser.toInteger()
+    } 
+    if ( id > 0 ) {
+	debugLog("Processing slot #$id")
+	processUserCode(id)
+    }
+  }
+}
+
+def processUserCode(id) {
+    debugLog "Processing code: $id " + settings."userCode${id}"
+    def newCode = settings?."userCode${id}"
+    def newEnabled = settings?."userEnabled${id}"
+    debugLog "Processing code: $id: $newCode : $newEnabled"
+    // if the user is not enabled, or the code is blank for some reason, we will issue the delete no matter what
+    if ( ! newEnabled || ! newCode || newCode == null ) {
+    	debugLog "Deleting code for user #${id}"
+    	locks.deleteCode(id)
+        return
+    }
+    // Enabled, make sure the code is a string
+    if ( newCode.isNumber() ) {
+		newCode = settings."userCode${id}".toString()
+    }
+    // user enabled, set the code anyway. isStateChange will be false so the event will be filtered
+    locks.setCode(id, newCode)
+}
+ 
+def setRefreshCookie(id) {
+      state.cookieCurrentUser = id
+      state.cookieCurrentUserEnabled = settings?."userEnabled${id}"
+      state.cookieCurrentUserCode = settings?."userCode${id}"
+
+}
+
+def clearRefreshCookie() {
+      state.cookieCurrentUser = null
+      state.cookieCurrentUserEnabled = null
+      state.cookieCurrentUserCode = null
+}
+
+def setMaxUserDefault() {
+    debugLog("Checking maxUsers")
+    if ( settings?.endSlot > 0 ) {
+        debugLog("endSlot is set at ${settings.endSlot}")
+    	state.endSlot = settings.endSlot
+    } else if ( settings?.maxUsers > 0 ) {
+        debugLog("maxUsers is set at ${settings.maxUsers}")
+    	state.endSlot = settings.maxUsers
+    }
+}
+
+def debugLog(msg) {
+	if ( settings?.enableDebug ) {
+		log.debug "USER-LOCK-MANAGER: $msg"
+    }
+}
+
