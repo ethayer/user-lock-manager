@@ -67,7 +67,7 @@ def parse(String description) {
       )
     }
   } else {
-    def cmd = zwave.parse(description, [ 0x98: 1, 0x72: 2, 0x85: 2 ])
+    def cmd = zwave.parse(description, [ 0x98: 1, 0x72: 2, 0x85: 2, 0x86: 1 ])
     if (cmd) {
       result = zwaveEvent(cmd)
     }
@@ -77,7 +77,7 @@ def parse(String description) {
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
-  def encapsulatedCommand = cmd.encapsulatedCommand([0x62: 1, 0x71: 2, 0x80: 1, 0x85: 2, 0x63: 1, 0x98: 1])
+  def encapsulatedCommand = cmd.encapsulatedCommand([0x62: 1, 0x71: 2, 0x80: 1, 0x85: 2, 0x63: 1, 0x98: 1, 0x86: 1])
   // log.debug "encapsulated: $encapsulatedCommand"
   if (encapsulatedCommand) {
     zwaveEvent(encapsulatedCommand)
@@ -156,28 +156,64 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
         map = [ name: "lock", value: "unknown", descriptionText: "$device.displayName is jammed" ]
         break
       case 0xC:
-        map = [ name: "codeChanged", value: "all", descriptionText: "$device.displayName: all user codes deleted", displayed: true ]
+        map = [ name: "codeChanged", value: "all", descriptionText: "$device.displayName: all user codes deleted", isStateChange: true ]
         allCodesDeleted()
         break
       case 0xD:
         if (cmd.eventParameter) {
-          map = [ name: "codeReport", value: cmd.eventParameter[0], data: [ code: "" ], displayed: true ]
+          map = [ name: "codeReport", value: cmd.eventParameter[0], data: [ code: "" ], isStateChange: true ]
           map.descriptionText = "$device.displayName code ${map.value} was deleted"
           map.isStateChange = (state["code$map.value"] != "")
           state["code$map.value"] = ""
         } else {
-          map = [ name: "codeChanged", descriptionText: "$device.displayName: user code deleted", displayed: true ]
+          map = [ name: "codeChanged", descriptionText: "$device.displayName: user code deleted", isStateChange: true ]
         }
         break
       case 0xE:
-        map = [ name: "codeChanged", value: cmd.alarmLevel,  descriptionText: "$device.displayName: user code added", displayed: true ]
+        map = [ name: "codeChanged", value: cmd.alarmLevel,  descriptionText: "$device.displayName: user code added", isStateChange: true ]
         if (cmd.eventParameter) {
           map.value = cmd.eventParameter[0]
           result << response(requestCode(cmd.eventParameter[0]))
         }
         break
+      case 0xF:
+        map = [ name: "codeChanged", descriptionText: "$device.displayName: user code not added, duplicate", isStateChange: true ]
+        break
+      case 0x10:
+        map = [ name: "tamper", value: "detected", descriptionText: "$device.displayName: keypad temporarily disabled", displayed: true ]
+        break
+      case 0x11:
+        map = [ descriptionText: "$device.displayName: keypad is busy" ]
+        break
+      case 0x12:
+        map = [ name: "codeChanged", descriptionText: "$device.displayName: program code changed", isStateChange: true ]
+        break
+      case 0x13:
+        map = [ name: "tamper", value: "detected", descriptionText: "$device.displayName: code entry attempt limit exceeded", displayed: true ]
+        break
       default:
-        map = map ?: [ descriptionText: "$device.displayName: alarm event $cmd.zwaveAlarmEvent", display: false ]
+        map = map ?: [ descriptionText: "$device.displayName: alarm event $cmd.zwaveAlarmEvent", displayed: false ]
+        break
+    }
+  } else if (cmd.zwaveAlarmType == 7) {
+    map = [ name: "tamper", value: "detected", displayed: true ]
+    switch (cmd.zwaveAlarmEvent) {
+      case 0:
+        map.value = "clear"
+        map.descriptionText = "$device.displayName: tamper alert cleared"
+        break
+      case 1:
+      case 2:
+        map.descriptionText = "$device.displayName: intrusion attempt detected"
+        break
+      case 3:
+        map.descriptionText = "$device.displayName: covering removed"
+        break
+      case 4:
+        map.descriptionText = "$device.displayName: invalid code"
+        break
+      default:
+        map.descriptionText = "$device.displayName: tamper alarm $cmd.zwaveAlarmEvent"
         break
     }
   } else switch(cmd.alarmType) {
@@ -206,27 +242,28 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
       map = [ name: "lock", value: "unknown", descriptionText: "$device.displayName bolt is jammed" ]
       break
     case 13:
-      map = [ name: "codeChanged", value: cmd.alarmLevel, descriptionText: "$device.displayName code $cmd.alarmLevel was added", displayed: true ]
+      map = [ name: "codeChanged", value: cmd.alarmLevel, descriptionText: "$device.displayName code $cmd.alarmLevel was added", isStateChange: true ]
       result << response(requestCode(cmd.alarmLevel))
       break
     case 32:
-      map = [ name: "codeChanged", value: "all", descriptionText: "$device.displayName: all user codes deleted", displayed: true ]
+      map = [ name: "codeChanged", value: "all", descriptionText: "$device.displayName: all user codes deleted", isStateChange: true ]
       allCodesDeleted()
     case 33:
-      map = [ name: "codeReport", value: cmd.alarmLevel, data: [ code: "" ], displayed: true ]
+      map = [ name: "codeReport", value: cmd.alarmLevel, data: [ code: "" ], isStateChange: true ]
       map.descriptionText = "$device.displayName code $cmd.alarmLevel was deleted"
       map.isStateChange = (state["code$cmd.alarmLevel"] != "")
       state["code$cmd.alarmLevel"] = ""
       break
     case 112:
-      map = [ name: "codeChanged", value: cmd.alarmLevel, descriptionText: "$device.displayName code $cmd.alarmLevel changed", displayed: true ]
+      map = [ name: "codeChanged", value: cmd.alarmLevel, descriptionText: "$device.displayName code $cmd.alarmLevel changed", isStateChange: true ]
       result << response(requestCode(cmd.alarmLevel))
       break
     case 130:  // Yale YRD batteries replaced
-      map = [ descriptionText: "$device.displayName batteries replaced", displayed: true ]
+      map = [ descriptionText: "$device.displayName batteries replaced", isStateChange: true ]
       break
     case 131:
-      map = [ /*name: "codeChanged", value: cmd.alarmLevel,*/ descriptionText: "$device.displayName code $cmd.alarmLevel is duplicate", displayed: false ]
+      map = [ /*name: "codeChanged", value: cmd.alarmLevel,*/ descriptionText: "$device.displayName code $cmd.alarmLevel is duplicate", isStateChange: false ]
+      break
     case 161:
       if (cmd.alarmLevel == 2) {
         map = [ descriptionText: "$device.displayName front escutcheon removed", isStateChange: true ]
@@ -236,7 +273,7 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
       break
     case 167:
       if (!state.lastbatt || (new Date().time) - state.lastbatt > 12*60*60*1000) {
-        map = [ descriptionText: "$device.displayName: battery low", displayed: true ]
+        map = [ descriptionText: "$device.displayName: battery low", isStateChange: true ]
         result << response(secure(zwave.batteryV1.batteryGet()))
       } else {
         map = [ name: "battery", value: device.currentValue("battery"), descriptionText: "$device.displayName: battery low", displayed: true ]
@@ -265,19 +302,19 @@ def zwaveEvent(UserCodeReport cmd) {
   {
     if (code == "**********") {  // Schlage locks send us this instead of the real code
       state.blankcodes = true
-      code = state["set$name"] ?: state[name] ?: code
+      code = state["set$name"] ?: decrypt(state[name]) ?: code
       state.remove("set$name".toString())
     }
     if (!code && cmd.userIdStatus == 1) {  // Schlage touchscreen sends blank code to notify of a changed code
       map = [ name: "codeChanged", value: cmd.userIdentifier, displayed: true, isStateChange: true ]
       map.descriptionText = "$device.displayName code $cmd.userIdentifier " + (state[name] ? "changed" : "was added")
-      code = state["set$name"] ?: state[name] ?: "****"
+      code = state["set$name"] ?: decrypt(state[name]) ?: "****"
       state.remove("set$name".toString())
     } else {
       map = [ name: "codeReport", value: cmd.userIdentifier, data: [ code: code ] ]
       map.descriptionText = "$device.displayName code $cmd.userIdentifier is set"
       map.displayed = (cmd.userIdentifier != state.requestCode && cmd.userIdentifier != state.pollCode)
-      map.isStateChange = (code != state[name])
+      map.isStateChange = (code != decrypt(state[name]))
     }
     result << createEvent(map)
   } else {
@@ -301,10 +338,10 @@ def zwaveEvent(UserCodeReport cmd) {
     }
     code = ""
   }
-  state[name] = code
+  state[name] = code ? encrypt(code) : code
 
   if (cmd.userIdentifier == state.requestCode) {  // reloadCodes() was called, keep requesting the codes in order
-    if (state.requestCode + 1 > state.codes) {
+    if (state.requestCode + 1 > state.codes || state.requestCode >= 30) {
       state.remove("requestCode")  // done
     } else {
       state.requestCode = state.requestCode + 1  // get next
@@ -312,7 +349,7 @@ def zwaveEvent(UserCodeReport cmd) {
     }
   }
   if (cmd.userIdentifier == state.pollCode) {
-    if (state.pollCode + 1 > state.codes) {
+    if (state.pollCode + 1 > state.codes || state.pollCode >= 30) {
       state.remove("pollCode")  // done
     } else {
       state.pollCode = state.pollCode + 1
@@ -398,6 +435,9 @@ def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerS
 def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
   def fw = "${cmd.applicationVersion}.${cmd.applicationSubVersion}"
   updateDataValue("fw", fw)
+  if (state.MSR == "003B-6341-5044") {
+    updateDataValue("ver", "${cmd.applicationVersion >> 4}.${cmd.applicationVersion & 0xF}")
+  }
   def text = "$device.displayName: firmware version: $fw, Z-Wave version: ${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}"
   createEvent(descriptionText: text, isStateChange: false)
 }
@@ -406,7 +446,11 @@ def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationBusy 
   def msg = cmd.status == 0 ? "try again later" :
             cmd.status == 1 ? "try again in $cmd.waitTime seconds" :
             cmd.status == 2 ? "request queued" : "sorry"
-  createEvent(displayed: false, descriptionText: "$device.displayName is busy, $msg")
+  createEvent(displayed: true, descriptionText: "$device.displayName is busy, $msg")
+}
+
+def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationRejectedRequest cmd) {
+  createEvent(displayed: true, descriptionText: "$device.displayName rejected the last request")
 }
 
 def zwaveEvent(physicalgraph.zwave.Command cmd) {
@@ -469,9 +513,13 @@ def poll() {
   } else {
     // Only check lock state if it changed recently or we haven't had an update in an hour
     def latest = device.currentState("lock")?.date?.time
-    if (!latest || !secondsPast(latest, 6 * 60) || secondsPast(state.lastPoll, 67 * 60)) {
+    if (!latest || !secondsPast(latest, 6 * 60) || secondsPast(state.lastPoll, 55 * 60)) {
       cmds << secure(zwave.doorLockV1.doorLockOperationGet())
       state.lastPoll = (new Date()).time
+    } else if (!state.MSR) {
+      cmds << zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
+    } else if (!state.fw) {
+      cmds << zwave.versionV1.versionGet().format()
     } else if (!state.codes) {
       state.pollCode = 1
       cmds << secure(zwave.userCodeV1.usersNumberGet())
@@ -479,12 +527,30 @@ def poll() {
       cmds << requestCode(state.pollCode)
     } else if (!state.lastbatt || (new Date().time) - state.lastbatt > 53*60*60*1000) {
       cmds << secure(zwave.batteryV1.batteryGet())
+    } else if (!state.enc) {
+      encryptCodes()
+      state.enc = 1
     }
-    if(cmds) cmds << "delay 6000"
   }
-  log.debug "poll is sending ${cmds.inspect()}, state: ${state.inspect()}"
-  device.activity()  // workaround to keep polling from being shut off
+  log.debug "poll is sending ${cmds.inspect()}"
+  device.activity()
   cmds ?: null
+}
+
+private def encryptCodes() {
+  def keys = new ArrayList(state.keySet().findAll { it.startsWith("code") })
+  keys.each { key ->
+    def match = (key =~ /^code(\d+)$/)
+    if (match) try {
+      def keynum = match[0][1].toInteger()
+      if (keynum > 30 && !state[key]) {
+        state.remove(key)
+      } else if (state[key] && !state[key].startsWith("~")) {
+        log.debug "encrypting $key: ${state[key].inspect()}"
+        state[key] = encrypt(state[key])
+      }
+    } catch (java.lang.NumberFormatException e) { }
+  }
 }
 
 def requestCode(codeNumber) {
@@ -512,7 +578,8 @@ def setCode(codeNumber, code) {
     strcode = code.collect{ it as Character }.join()
   }
   if (state.blankcodes) {
-    if (state["code$codeNumber"] != "") {  // Can't just set, we won't be able to tell if it was successful
+    // Can't just set, we won't be able to tell if it was successful
+    if (state["code$codeNumber"] != "") {
       if (state["setcode$codeNumber"] != strcode) {
         state["resetcode$codeNumber"] = strcode
         return deleteCode(codeNumber)
@@ -540,7 +607,7 @@ def updateCodes(codeSettings) {
   def set_cmds = []
   def get_cmds = []
   codeSettings.each { name, updated ->
-    def current = state[name]
+    def current = decrypt(state[name])
     if (name.startsWith("code")) {
       def n = name[4..-1].toInteger()
       log.debug "$name was $current, set to $updated"
@@ -564,11 +631,13 @@ def updateCodes(codeSettings) {
 }
 
 def getCode(codeNumber) {
-  state["code$codeNumber"]
+  decrypt(state["code$codeNumber"])
 }
 
 def getAllCodes() {
-  state.findAll { it.key.startsWith 'code' }
+  state.findAll { it.key.startsWith 'code' }.collectEntries {
+    [it.key, (it.value instanceof String && it.value.startsWith("~")) ? decrypt(it.value) : it.value]
+  }
 }
 
 private secure(physicalgraph.zwave.Command cmd) {
