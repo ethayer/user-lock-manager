@@ -203,9 +203,10 @@ def onUnlockPage() {
 }
 
 def resetCodeUsagePage(params) {
-  // do reset
-  resetCodeUsage(params.number)
   def i = getUser(params)
+  // do reset
+  resetCodeUsage(i)
+
   dynamicPage(name:"resetCodeUsagePage", title:"User Usage Reset") {
     section {
       paragraph "User code usage has been reset."
@@ -461,7 +462,6 @@ def updated() {
 }
 
 private initialize() {
-  log.debug "Settings: ${settings}"
   unsubscribe()
   unschedule()
   if (startTime && !startDateTime()) {
@@ -803,10 +803,9 @@ def usedUserSlot(usedSlot) {
 }
 
 def codeUsed(evt) {
-  def codeData = new JsonSlurper().parseText(evt.data)
   if(evt.value == "unlocked" && evt.data) {
-    codeData = new JsonSlurper().parseText(evt.data)
-    if(userSlotArray().contains(codeData.usedCode.toInteger())) {
+    def codeData = new JsonSlurper().parseText(evt.data)
+    if(codeData.usedCode && userSlotArray().contains(codeData.usedCode.toInteger())) {
       def usedSlot = usedUserSlot(codeData.usedCode).toInteger()
       def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
