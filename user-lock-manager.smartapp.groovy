@@ -78,54 +78,33 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
-    if (params?.number || params?.params?.number) {
-      def i = 0
+    def i = getUser(params);
 
-      // Assign params to i.  Sometimes parameters are double nested.
-      if (params.number) {
-        i = params.number
-      } else {
-        i = params.params.number
-      }
-
-      //Make sure i is a round number, not a float.
-      if ( ! i.isNumber() ) {
-        i = i.toInteger();
-      } else if ( i.isNumber() ) {
-        i = Math.round(i * 100) / 100
-      }
-
-      if (!state."userState${i}".enabled) {
-        section {
-          paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
-          href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
-        }
-      }
-      section("Code #${i}") {
-        input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
-        input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
-        input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
-      }
+    if (!state."userState${i}".enabled) {
       section {
-        input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
-        input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
-        def phrases = location.helloHome?.getPhrases()*.label
-        if (phrases) {
-          phrases.sort()
-          input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
-          input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
-          input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
-        }
+        paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
+        href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
       }
-      section {
-        href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
-        href(name: "toResetCodeUsagePage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
+    }
+    section("Code #${i}") {
+      input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
+      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
+      input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
+    }
+    section {
+      input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
+      input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
+      def phrases = location.helloHome?.getPhrases()*.label
+      if (phrases) {
+        phrases.sort()
+        input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
+        input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
+        input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
       }
-    } else {
-      section {
-        paragraph "Page has been refreshed, please go back to users page."
-        href(name: "toSetupPage", title: "Back", page: "setupPage")
-      }
+    }
+    section {
+      href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
+      href(name: "toResetCodeUsagePage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
     }
   }
 }
@@ -226,7 +205,7 @@ def onUnlockPage() {
 def resetCodeUsagePage(params) {
   // do reset
   resetCodeUsage(params.number)
-  def i = params.number
+  def i = getUser(params)
   dynamicPage(name:"resetCodeUsagePage", title:"User Usage Reset") {
     section {
       paragraph "User code usage has been reset."
@@ -251,7 +230,7 @@ def resetAllCodeUsagePage() {
 }
 def reEnableUserPage(params) {
   // do reset
-  def i = params.number.toString().replaceAll('.0','').toInteger()
+  def i = getUser(params)
   enableUser(i)
   lockErrorLoopReset()
   dynamicPage(name:"reEnableUserPage", title:"User re-enabled") {
@@ -262,6 +241,27 @@ def reEnableUserPage(params) {
       href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
     }
   }
+}
+
+def getUser(params) {
+  def i = 0
+  // Assign params to i.  Sometimes parameters are double nested.
+  if (params.number) {
+    i = params.number
+  } else if (params.params){
+    i = params.params.number
+  } else {
+    i = state.lastUser
+  }
+
+  //Make sure i is a round number, not a float.
+  if ( ! i.isNumber() ) {
+    i = i.toInteger();
+  } else if ( i.isNumber() ) {
+    i = Math.round(i * 100) / 100
+  }
+  state.lastUser = i
+  return i
 }
 
 public smartThingsDateFormat() { "yyyy-MM-dd'T'HH:mm:ss.SSSZ" }
