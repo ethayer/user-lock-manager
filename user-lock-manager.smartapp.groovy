@@ -368,7 +368,7 @@ def userHrefDescription(i) {
 def userPageState(i) {
   if (settings."userCode${i}" && userIsEnabled(i)) {
     if (settings."burnCode${i}") {
-      if (state.codeUsage."code${i}" > 0) {
+      if (state."userState${i}".usage > 0) {
         return 'incomplete'
       } else {
         return 'complete'
