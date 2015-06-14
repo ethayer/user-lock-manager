@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.9
+ *  User Lock Manager v3.8.0
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -170,17 +170,26 @@ def calendarPage() {
       paragraph "This page is for advanced users only. You must enter each field carefully."
       paragraph "Calendar use does not support daily grant/deny OR Modes.  You cannot both have a date here, and allow access only on certain days/modes."
     }
+    def phrases = location.helloHome?.getPhrases()*.label
     section("Start Date") {
       input name: "startDay", type: "number", title: "Day", required: false
       input name: "startMonth", type: "number", title: "Month", required: false
       input name: "startYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "startTime", type: "time", title: "Start Time", description: null, required: false
+      if (phrases) {
+        phrases.sort()
+        input name: "calStartPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      }
     }
     section("End Date") {
       input name: "endDay", type: "number", title: "Day", required: false
       input name: "endMonth", type: "number", title: "Month", required: false
       input name: "endYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "endTime", type: "time", title: "End Time", description: null, required: false
+      if (phrases) {
+        phrases.sort()
+        input name: "calEndPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      }
     }
   }
 }
@@ -245,13 +254,13 @@ def reEnableUserPage(params) {
 }
 
 def getUser(params) {
-  def i = 0
+  def i = 1
   // Assign params to i.  Sometimes parameters are double nested.
   if (params.number) {
     i = params.number
   } else if (params.params){
     i = params.params.number
-  } else {
+  } else if (state.lastUser) {
     i = state.lastUser
   }
 
@@ -540,11 +549,17 @@ def reconcileCodes() {
 def reconcileCodesStart() {
   // schedule start of reconcileCodes
   reconcileCodes()
+  if (calStartPhrase) {
+    location.helloHome.execute(calStartPhrase)
+  }
 }
 
 def reconcileCodesEnd() {
   // schedule end of reconcileCodes
   reconcileCodes()
+  if (calEndPhrase) {
+    location.helloHome.execute(calEndPhrase)
+  }
 }
 
 def isAbleToStart() {
@@ -793,13 +808,12 @@ def codereturn(evt) {
 }
 
 def usedUserSlot(usedSlot) {
-  def slot = ''
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
       return i
     }
   }
-  return slot
+  return false
 }
 
 def codeUsed(evt) {
