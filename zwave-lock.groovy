@@ -1,6 +1,6 @@
 metadata {
   // Automatically generated. Make future change here.
-  definition (name: "Z-Wave Lock", namespace: "smartthings", author: "SmartThings") {
+  definition (name: "Z-Wave Lock Reporting", namespace: "smartthings", author: "SmartThings") {
     capability "Actuator"
     capability "Lock"
     capability "Polling"
