@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.8.0
+ *  User Lock Manager v3.8.1
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -963,20 +963,21 @@ def pollCodeReport(evt) {
 
   def array = []
   (1..maxUsers).each { user->
-    def code = codeData."code${user}"
-    def usedSlot = usedUserSlot(user)
+    def slot = settings."userSlot${user}"
+    def code = codeData."code${slot}"
+    def correctCode = settings."userCode${user}"
     if (active) {
-      if (userIsEnabled(usedSlot) && isActiveBurnCode(usedSlot)) {
-        if (code == settings."userCode${usedSlot}") {
+      if (userIsEnabled(user) && isActiveBurnCode(user)) {
+        if (code == settings."userCode${user}") {
           // Code is Active, We should be active. Nothing to do
         } else {
           // Code is incorrect, We should be active.
-          array << ["code${user}", settings."userCode${usedSlot}"]
+          array << ["code${slot}", settings."userCode${user}"]
         }
       } else {
         if (code != '') {
           // Code is set, user is disabled, We should be disabled.
-          array << ["code${user}", ""]
+          array << ["code${slot}", ""]
         } else {
           // Code is not set, user is disabled. Nothing to do
         }
@@ -984,7 +985,7 @@ def pollCodeReport(evt) {
     } else {
       if (code != '') {
         // Code is set, We should be disabled.
-        array << ["code${user}", ""]
+        array << ["code${slot}", ""]
       } else {
         // Code is not active, We should be disabled. Nothing to do
       }
