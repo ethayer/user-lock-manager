@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.7.8
+ *  User Lock Manager v3.8.1
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -78,54 +78,33 @@ def setupPage() {
 
 def userPage(params) {
   dynamicPage(name:"userPage", title:"User Settings") {
-    if (params?.number || params?.params?.number) {
-      def i = 0
+    def i = getUser(params);
 
-      // Assign params to i.  Sometimes parameters are double nested.
-      if (params.number) {
-        i = params.number
-      } else {
-        i = params.params.number
-      }
-
-      //Make sure i is a round number, not a float.
-      if ( ! i.isNumber() ) {
-        i = i.toInteger();
-      } else if ( i.isNumber() ) {
-        i = Math.round(i * 100) / 100
-      }
-
-      if (!state."userState${i}".enabled) {
-        section {
-          paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
-          href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
-        }
-      }
-      section("Code #${i}") {
-        input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
-        input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
-        input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
-      }
+    if (!state."userState${i}".enabled) {
       section {
-        input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
-        input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
-        def phrases = location.helloHome?.getPhrases()*.label
-        if (phrases) {
-          phrases.sort()
-          input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
-          input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
-          input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
-        }
+        paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
+        href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
       }
-      section {
-        href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
-        href(name: "toResetCodeUsagePage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
+    }
+    section("Code #${i}") {
+      input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
+      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
+      input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
+    }
+    section {
+      input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
+      input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
+      def phrases = location.helloHome?.getPhrases()*.label
+      if (phrases) {
+        phrases.sort()
+        input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
+        input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
+        input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
       }
-    } else {
-      section {
-        paragraph "Page has been refreshed, please go back to users page."
-        href(name: "toSetupPage", title: "Back", page: "setupPage")
-      }
+    }
+    section {
+      href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
+      href(name: "toResetCodeUsagePage", title: "Reset Code Usage", page: "resetCodeUsagePage", params: [number: i], description: "Tap to reset")
     }
   }
 }
@@ -191,17 +170,26 @@ def calendarPage() {
       paragraph "This page is for advanced users only. You must enter each field carefully."
       paragraph "Calendar use does not support daily grant/deny OR Modes.  You cannot both have a date here, and allow access only on certain days/modes."
     }
+    def phrases = location.helloHome?.getPhrases()*.label
     section("Start Date") {
       input name: "startDay", type: "number", title: "Day", required: false
       input name: "startMonth", type: "number", title: "Month", required: false
       input name: "startYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "startTime", type: "time", title: "Start Time", description: null, required: false
+      if (phrases) {
+        phrases.sort()
+        input name: "calStartPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      }
     }
     section("End Date") {
       input name: "endDay", type: "number", title: "Day", required: false
       input name: "endMonth", type: "number", title: "Month", required: false
       input name: "endYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "endTime", type: "time", title: "End Time", description: null, required: false
+      if (phrases) {
+        phrases.sort()
+        input name: "calEndPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      }
     }
   }
 }
@@ -224,9 +212,10 @@ def onUnlockPage() {
 }
 
 def resetCodeUsagePage(params) {
+  def i = getUser(params)
   // do reset
-  resetCodeUsage(params.number)
-  def i = params.number
+  resetCodeUsage(i)
+
   dynamicPage(name:"resetCodeUsagePage", title:"User Usage Reset") {
     section {
       paragraph "User code usage has been reset."
@@ -251,7 +240,7 @@ def resetAllCodeUsagePage() {
 }
 def reEnableUserPage(params) {
   // do reset
-  def i = params.number.toString().replaceAll('.0','').toInteger()
+  def i = getUser(params)
   enableUser(i)
   lockErrorLoopReset()
   dynamicPage(name:"reEnableUserPage", title:"User re-enabled") {
@@ -262,6 +251,27 @@ def reEnableUserPage(params) {
       href(name: "toSetupPage", title: "Back To Users", page: "setupPage")
     }
   }
+}
+
+def getUser(params) {
+  def i = 1
+  // Assign params to i.  Sometimes parameters are double nested.
+  if (params.number) {
+    i = params.number
+  } else if (params.params){
+    i = params.params.number
+  } else if (state.lastUser) {
+    i = state.lastUser
+  }
+
+  //Make sure i is a round number, not a float.
+  if ( ! i.isNumber() ) {
+    i = i.toInteger();
+  } else if ( i.isNumber() ) {
+    i = Math.round(i * 100) / 100
+  }
+  state.lastUser = i
+  return i
 }
 
 public smartThingsDateFormat() { "yyyy-MM-dd'T'HH:mm:ss.SSSZ" }
@@ -368,7 +378,7 @@ def userHrefDescription(i) {
 def userPageState(i) {
   if (settings."userCode${i}" && userIsEnabled(i)) {
     if (settings."burnCode${i}") {
-      if (state.codeUsage."code${i}" > 0) {
+      if (state."userState${i}".usage > 0) {
         return 'incomplete'
       } else {
         return 'complete'
@@ -461,7 +471,6 @@ def updated() {
 }
 
 private initialize() {
-  log.debug "Settings: ${settings}"
   unsubscribe()
   unschedule()
   if (startTime && !startDateTime()) {
@@ -540,11 +549,17 @@ def reconcileCodes() {
 def reconcileCodesStart() {
   // schedule start of reconcileCodes
   reconcileCodes()
+  if (calStartPhrase) {
+    location.helloHome.execute(calStartPhrase)
+  }
 }
 
 def reconcileCodesEnd() {
   // schedule end of reconcileCodes
   reconcileCodes()
+  if (calEndPhrase) {
+    location.helloHome.execute(calEndPhrase)
+  }
 }
 
 def isAbleToStart() {
@@ -793,20 +808,18 @@ def codereturn(evt) {
 }
 
 def usedUserSlot(usedSlot) {
-  def slot = ''
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
       return i
     }
   }
-  return slot
+  return false
 }
 
 def codeUsed(evt) {
-  def codeData = new JsonSlurper().parseText(evt.data)
   if(evt.value == "unlocked" && evt.data) {
-    codeData = new JsonSlurper().parseText(evt.data)
-    if(userSlotArray().contains(codeData.usedCode.toInteger())) {
+    def codeData = new JsonSlurper().parseText(evt.data)
+    if(codeData.usedCode && userSlotArray().contains(codeData.usedCode.toInteger())) {
       def usedSlot = usedUserSlot(codeData.usedCode).toInteger()
       def unlockUserName = settings."userName${usedSlot}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
@@ -950,20 +963,21 @@ def pollCodeReport(evt) {
 
   def array = []
   (1..maxUsers).each { user->
-    def code = codeData."code${user}"
-    def usedSlot = usedUserSlot(user)
+    def slot = settings."userSlot${user}"
+    def code = codeData."code${slot}"
+    def correctCode = settings."userCode${user}"
     if (active) {
-      if (userIsEnabled(usedSlot) && isActiveBurnCode(usedSlot)) {
-        if (code == settings."userCode${usedSlot}") {
+      if (userIsEnabled(user) && isActiveBurnCode(user)) {
+        if (code == settings."userCode${user}") {
           // Code is Active, We should be active. Nothing to do
         } else {
           // Code is incorrect, We should be active.
-          array << ["code${user}", settings."userCode${usedSlot}"]
+          array << ["code${slot}", settings."userCode${user}"]
         }
       } else {
         if (code != '') {
           // Code is set, user is disabled, We should be disabled.
-          array << ["code${user}", ""]
+          array << ["code${slot}", ""]
         } else {
           // Code is not set, user is disabled. Nothing to do
         }
@@ -971,7 +985,7 @@ def pollCodeReport(evt) {
     } else {
       if (code != '') {
         // Code is set, We should be disabled.
-        array << ["code${user}", ""]
+        array << ["code${slot}", ""]
       } else {
         // Code is not active, We should be disabled. Nothing to do
       }
