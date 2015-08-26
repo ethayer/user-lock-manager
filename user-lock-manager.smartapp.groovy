@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.8.1
+ *  User Lock Manager v3.8.2
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -807,7 +807,7 @@ def codereturn(evt) {
   }
 }
 
-def usedUserSlot(usedSlot) {
+def usedUserIndex(usedSlot) {
   for (int i = 1; i <= settings.maxUsers; i++) {
     if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
       return i
@@ -819,31 +819,31 @@ def usedUserSlot(usedSlot) {
 def codeUsed(evt) {
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
-    if(codeData.usedCode && userSlotArray().contains(codeData.usedCode.toInteger())) {
-      def usedSlot = usedUserSlot(codeData.usedCode).toInteger()
-      def unlockUserName = settings."userName${usedSlot}"
+    if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
+      def usedIndex = usedUserIndex(codeData.usedCode).toInteger()
+      def unlockUserName = settings."userName${usedIndex}"
       def message = "${evt.displayName} was unlocked by ${unlockUserName}"
       // increment usage
-      state."userState${usedSlot}".usage = state."userState${usedSlot}".usage + 1
-      if(settings."userHomePhrases${usedSlot}") {
+      state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
+      if(settings."userHomePhrases${usedIndex}") {
         // Specific User Hello Home
-        if (settings."userNoRunPresence${usedSlot}" && settings."userDoRunPresence${usedSlot}" == null) {
-          if (!anyoneHome(settings."userNoRunPresence${usedSlot}")) {
-            location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+        if (settings."userNoRunPresence${usedIndex}" && settings."userDoRunPresence${usedIndex}" == null) {
+          if (!anyoneHome(settings."userNoRunPresence${usedIndex}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedIndex}")
           }
-        } else if (settings."userDoRunPresence${usedSlot}" && settings."userNoRunPresence${usedSlot}" == null) {
-          if (anyoneHome(settings."userDoRunPresence${usedSlot}")) {
-            location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+        } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}" == null) {
+          if (anyoneHome(settings."userDoRunPresence${usedIndex}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedIndex}")
           }
-        } else if (settings."userDoRunPresence${usedSlot}" && settings."userNoRunPresence${usedSlot}") {
-          if (anyoneHome(settings."userDoRunPresence${usedSlot}") && !anyoneHome(settings."userNoRunPresence${usedSlot}")) {
-            location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+        } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}") {
+          if (anyoneHome(settings."userDoRunPresence${usedIndex}") && !anyoneHome(settings."userNoRunPresence${usedIndex}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedIndex}")
           }
         } else {
-          location.helloHome.execute(settings."userHomePhrases${usedSlot}")
+          location.helloHome.execute(settings."userHomePhrases${usedIndex}")
         }
       }
-      if(settings."burnCode${usedSlot}") {
+      if(settings."burnCode${usedIndex}") {
         locks.deleteCode(codeData.usedCode)
         runIn(60*2, doPoll)
         message += ".  Now burning code."
@@ -934,7 +934,8 @@ def revokeAccess() {
 def isManualUnlock(codeData) {
   // check to see if the user wants this
   if (manualUnlock) {
-    if ((codeData.usedCode == "") || (codeData.usedCode == null)) {
+    // garyd9's device type returns 'manual'
+    if ((codeData.usedCode == "") || (codeData.usedCode == null) || (codeData.usedCode == 'manual')) {
       // no code used on unlock!
       return true
     } else {
@@ -1008,7 +1009,7 @@ def pollCodeReport(evt) {
     //Lock is in an error state
     state."lock${currentLockNumber}".error_loop = true
     def error_number = state.error_loop_count + 1
-    if (error_number <= 10) {
+    if (error_number <= 2) {
       log.debug "sendCodes fix is: ${json} Error: ${error_number}/10"
       currentLock.updateCodes(json)
     } else {
@@ -1018,11 +1019,10 @@ def pollCodeReport(evt) {
       def n = 0
       json.each { code ->
         n = code[0][4..-1].toInteger()
-        def usedSlot = usedUserSlot(n)
-        def name = settings."userName${usedSlot}"
-        log.debug "disable: ${n}"
-        if (state."userState${usedSlot}".enabled) {
-          state."userState${usedSlot}".enabled = false
+        def usedIndex = usedUserIndex(n)
+        def name = settings."userName${usedIndex}"
+        if (state."userState${usedIndex}".enabled) {
+          state."userState${usedIndex}".enabled = false
           send("Controller failed to set code for ${name}")
         }
       }
