@@ -1009,7 +1009,7 @@ def pollCodeReport(evt) {
     //Lock is in an error state
     state."lock${currentLockNumber}".error_loop = true
     def error_number = state.error_loop_count + 1
-    if (error_number <= 2) {
+    if (error_number <= 10) {
       log.debug "sendCodes fix is: ${json} Error: ${error_number}/10"
       currentLock.updateCodes(json)
     } else {
