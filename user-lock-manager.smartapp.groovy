@@ -88,7 +88,13 @@ def userPage(params) {
     }
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
-      input(name: "userCode${i}", type: "text", title: "Code (4 to 8 digits)", required: false, defaultValue: settings."userCode${i}")
+      def title = "Code (4 to 8 digits)"
+      locks.each { lock->
+        if (lock.hasAttribute("pinLength")) {
+          title = "Code (Must be ${lock.pinLength} digits)"
+        }
+      }
+      input(name: "userCode${i}", type: "text", title: title, required: false, defaultValue: settings."userCode${i}")
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
     }
     section {
