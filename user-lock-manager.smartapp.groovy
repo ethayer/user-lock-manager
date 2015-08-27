@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.8.2
+ *  User Lock Manager v3.8.3
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -90,7 +90,7 @@ def userPage(params) {
       input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
       def title = "Code (4 to 8 digits)"
       locks.each { lock->
-        if (lock.hasAttribute("pinLength")) {
+        if (lock.latestValue('pinLength')) {
           title = "Code (Must be ${lock.pinLength} digits)"
         }
       }
