@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.8.3
+ *  User Lock Manager v3.8.4
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -538,10 +538,9 @@ def lockErrorLoopReset() {
 
 def locationHandler(evt) {
   log.debug "locationHandler evt: ${evt.value}"
-  if (!modeStart) {
-    return
+  if (modeStart) {
+    reconcileCodes()
   }
-  modeCheck()
 }
 
 def reconcileCodes() {
