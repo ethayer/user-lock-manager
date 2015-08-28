@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.8.4
+ *  User Lock Manager v3.8.4.1
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -796,7 +796,7 @@ def codereturn(evt) {
   def codeSlot = evt.value
   if (notifyAccessEnd || notifyAccessStart) {
     if (userSlotArray().contains(evt.integerValue.toInteger())) {
-      def userName = settings."userName${usedUserSlot(evt.integerValue)}"
+      def userName = settings."userName${usedUserIndex(evt.integerValue)}"
       if (codeNumber == "") {
         if (notifyAccessEnd) {
           def message = "${userName} no longer has access to ${evt.displayName}"
