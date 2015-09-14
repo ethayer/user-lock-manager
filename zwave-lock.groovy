@@ -1,5 +1,17 @@
+/**
+ *  Copyright 2015 SmartThings
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ */
 metadata {
-  // Automatically generated. Make future change here.
   definition (name: "Z-Wave Lock", namespace: "smartthings", author: "SmartThings") {
     capability "Actuator"
     capability "Lock"
@@ -23,24 +35,26 @@ metadata {
     reply "988100620100,delay 4200,9881006202": "command: 9881, payload: 00 62 03 00 00 00 FE FE"
   }
 
-  tiles {
-    standardTile("toggle", "device.lock", width: 2, height: 2) {
-      state "locked", label:'locked', action:"lock.unlock", icon:"st.locks.lock.locked", backgroundColor:"#79b821", nextState:"unlocking"
-      state "unlocked", label:'unlocked', action:"lock.lock", icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff", nextState:"locking"
-      state "unknown", label:"unknown", action:"lock.lock", icon:"st.locks.lock.unknown", backgroundColor:"#ffffff", nextState:"locking"
-      state "locking", label:'locking', icon:"st.locks.lock.locked", backgroundColor:"#79b821"
-      state "unlocking", label:'unlocking', icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff"
+  tiles(scale: 2) {
+    multiAttributeTile(name:"toggle", type: "generic", width: 6, height: 4){
+      tileAttribute ("device.lock", key: "PRIMARY_CONTROL") {
+        attributeState "locked", label:'locked', action:"lock.unlock", icon:"st.locks.lock.locked", backgroundColor:"#79b821", nextState:"unlocking"
+        attributeState "unlocked", label:'unlocked', action:"lock.lock", icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff", nextState:"locking"
+        attributeState "unknown", label:"unknown", action:"lock.lock", icon:"st.locks.lock.unknown", backgroundColor:"#ffffff", nextState:"locking"
+        attributeState "locking", label:'locking', icon:"st.locks.lock.locked", backgroundColor:"#79b821"
+        attributeState "unlocking", label:'unlocking', icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff"
+      }
     }
-    standardTile("lock", "device.lock", inactiveLabel: false, decoration: "flat") {
+    standardTile("lock", "device.lock", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
       state "default", label:'lock', action:"lock.lock", icon:"st.locks.lock.locked", nextState:"locking"
     }
-    standardTile("unlock", "device.lock", inactiveLabel: false, decoration: "flat") {
+    standardTile("unlock", "device.lock", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
       state "default", label:'unlock', action:"lock.unlock", icon:"st.locks.lock.unlocked", nextState:"unlocking"
     }
-    valueTile("battery", "device.battery", inactiveLabel: false, decoration: "flat") {
+    valueTile("battery", "device.battery", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
       state "battery", label:'${currentValue}% battery', unit:""
     }
-    standardTile("refresh", "device.lock", inactiveLabel: false, decoration: "flat") {
+    standardTile("refresh", "device.lock", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
       state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
     }
 
