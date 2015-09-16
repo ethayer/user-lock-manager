@@ -28,6 +28,7 @@ definition(
   page(name: "resetAllCodeUsagePage")
   page(name: "resetCodeUsagePage")
   page(name: "reEnableUserPage")
+  page(name: "discoveryPage")
 }
 
 def rootPage() {
@@ -279,6 +280,30 @@ def getUser(params) {
   state.lastUser = i
   return i
 }
+
+def discoveryPage() {
+  dynamicPage(name:"discoveryPage", title:"User Settings") {
+    if (locks {
+      section('locks') {
+        locks.each { lock->
+          if (!state."userState${user}") {
+            //there's no values, so reset
+            resetCodeUsage(user)
+          }
+          href(name: "toLockPage${i}", page: "userPage", params: [number: i], required: false, description: userHrefDescription(user), title: userHrefTitle(user), state: userPageState(user) )
+        }
+      }
+      section {
+        href(name: "toResetAllCodeUsage", title: "Reset Code Usage", page: "resetAllCodeUsagePage", description: "Tap to reset")
+      }
+    } else {
+      section("Users") {
+        paragraph "Users are set to zero.  Please go back to the main page and change the number of users to at least 1."
+      }
+    }
+  }
+}
+
 
 public smartThingsDateFormat() { "yyyy-MM-dd'T'HH:mm:ss.SSSZ" }
 
@@ -968,6 +993,7 @@ def pollCodeReport(evt) {
   def userSlots = userSlotArray()
 
   def array = []
+
   (1..maxUsers).each { user->
     def slot = settings."userSlot${user}"
     def code = codeData."code${slot}"
@@ -1007,6 +1033,9 @@ def pollCodeReport(evt) {
       currentLockNumber = i
     }
   }
+
+  populateDiscovery(codeData, currentLockNumber)
+
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
     runIn(60*2, doPoll)
@@ -1084,4 +1113,13 @@ private sendMessage(msg) {
   if (sendevent) {
     sendNotificationEvent(msg)
   }
+}
+
+def populateDiscovery(codeData, lockNumber) {
+  def codes = []
+  (1..codeData.codes).each { user->
+    codes << [user, codeData."code${user}"]
+  }
+  state."lock${lockNumber}".codes = codes
+  log.debug state."lock${lockNumber}".codes
 }
