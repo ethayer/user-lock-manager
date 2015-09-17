@@ -11,6 +11,7 @@ Welcome to Lock Manager!
 ###Features:
 * Assign Codes to Multiple Users.
 * Manage Multiple Locks.
+* See what codes are active.
 * See how many times a code is used (reset usage manually)
 * Be notified when a user uses their code.
 * Delete codes after they are used*.

@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.8.4.1
+ *  User Lock Manager v3.9
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -28,7 +28,9 @@ definition(
   page(name: "resetAllCodeUsagePage")
   page(name: "resetCodeUsagePage")
   page(name: "reEnableUserPage")
-  page(name: "discoveryPage")
+  page(name: "infoPage")
+  page(name: "infoRefreshPage")
+  page(name: "lockInfoPage")
 }
 
 def rootPage() {
@@ -43,6 +45,7 @@ def rootPage() {
       section {
         input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
+        href(name: "toInfoPage", page: "infoPage", title: "Lock Info")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Global Hello Home")
@@ -83,8 +86,20 @@ def userPage(params) {
 
     if (!state."userState${i}".enabled) {
       section {
-        paragraph "This user has been disabled by the controller due to excessive failed set attempts! Please verify that the code is valid and does not conflict with another code.\n\nYou may attempt to delete the code field and re-enter it.\n\nTo re-enabled this slot, click 'Reset' link bellow."
+        paragraph "WARNING:\n\nThis user has been disabled.\nReason: ${state."userState${i}".disabledReason}"
         href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
+      }
+    }
+    if (settings."userCode${i}") {
+      def conflict = getConflicts(i)
+      if (conflict.has_conflict) {
+        section("Conflicts:") {
+          locks.each { lock->
+            if (conflict."lock${lock.id}".conflicts != null) {
+              paragraph "${lock.displayName} slot ${fancyString(conflict."lock${lock.id}".conflicts)}"
+            }
+          }
+        }
       }
     }
     section("Code #${i}") {
@@ -95,7 +110,7 @@ def userPage(params) {
           title = "Code (Must be ${lock.pinLength} digits)"
         }
       }
-      input(name: "userCode${i}", type: "text", title: title, required: false, defaultValue: settings."userCode${i}")
+      input(name: "userCode${i}", type: "text", title: title, required: false, defaultValue: settings."userCode${i}", refreshAfterSelection: true)
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
     }
     section {
@@ -281,29 +296,65 @@ def getUser(params) {
   return i
 }
 
-def discoveryPage() {
-  dynamicPage(name:"discoveryPage", title:"User Settings") {
-    if (locks {
-      section('locks') {
+def getLock(params) {
+  def id = ''
+  // Assign params to id.  Sometimes parameters are double nested.
+  if (params.id) {
+    id = params.id
+  } else if (params.params){
+    id = params.params.id
+  } else if (state.lastLock) {
+    id = state.lastLock
+  }
+
+  state.lastLock = id
+  return locks.find{it.id == id}
+}
+
+def infoPage(params) {
+  dynamicPage(name:"infoPage", title:"Lock Info") {
+    section() {
+      href(name: "toInfoRefreshPage", page: "infoRefreshPage", title: "Refresh Lock Data", description: 'Tap to refresh')
+    }
+    section("Locks") {
+      if (locks) {
         locks.each { lock->
-          if (!state."userState${user}") {
-            //there's no values, so reset
-            resetCodeUsage(user)
-          }
-          href(name: "toLockPage${i}", page: "userPage", params: [number: i], required: false, description: userHrefDescription(user), title: userHrefTitle(user), state: userPageState(user) )
+          href(name: "toLockInfoPage${i}", page: "lockInfoPage", params: [id: lock.id], required: false, title: lock.displayName )
         }
-      }
-      section {
-        href(name: "toResetAllCodeUsage", title: "Reset Code Usage", page: "resetAllCodeUsagePage", description: "Tap to reset")
-      }
-    } else {
-      section("Users") {
-        paragraph "Users are set to zero.  Please go back to the main page and change the number of users to at least 1."
       }
     }
   }
 }
+def infoRefreshPage() {
+  dynamicPage(name:"infoRefreshPage", title:"Lock Info") {
+    section() {
+      manualPoll()
+      paragraph "Lock info refreshing soon."
+      href(name: "toInfoPage", page: "infoPage", title: "Back to Lock Info")
+    }
+  }
+}
 
+def lockInfoPage(params) {
+  dynamicPage(name:"lockInfoPage", title:"Lock Info") {
+    def lock = getLock(params)
+    section() {
+      if (lock) {
+        if (state."lock${lock.id}".codes != null) {
+          def i = 0
+          def pass = ''
+          state."lock${lock.id}".codes.each { code->
+            i++
+            pass = state."lock${lock.id}".codes."slot${i}"
+            paragraph "Slot ${i}\nCode: ${pass}"
+          }
+        } else {
+          paragraph "No Lock data received yet.  Requires custom device driver.  Will be populated on next poll event."
+        }
+      }
+    }
+  }
+}
 
 public smartThingsDateFormat() { "yyyy-MM-dd'T'HH:mm:ss.SSSZ" }
 
@@ -312,6 +363,96 @@ public humanReadableStartDate() {
 }
 public humanReadableEndDate() {
   new Date().parse(smartThingsDateFormat(), endTime).format("h:mm a", timeZone(endTime))
+}
+
+def manualPoll() {
+  locks.poll()
+}
+
+def getConflicts(i) {
+  def currentCode = settings."userCode${i}"
+  def currentSlot = settings."userSlot${i}"
+  def conflict = [:]
+  conflict.has_conflict = false
+
+
+  locks.each { lock->
+    if (state."lock${lock.id}".codes) {
+      conflict."lock${lock.id}" = [:]
+      conflict."lock${lock.id}".conflicts = []
+      def ind = 0
+      state."lock${lock.id}".codes.each { code ->
+        ind++
+        if (currentSlot.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
+          conflict.has_conflict = true
+          state."userState${i}".enabled = false
+          state."userState${i}".disabledReason = "Code Conflict Detected"
+          conflict."lock${lock.id}".conflicts << ind
+        }
+      }
+    }
+  }
+
+  return conflict
+}
+
+def isUnique(newInt, oldInt) {
+  def newArray = []
+  def oldArray = []
+
+
+  // just to get the size
+  oldInt.toList().collect { oldArray << normalizeNumber(it.toInteger()) }
+  def oldSize = oldArray.size()
+  oldArray = []
+
+  def i = 0
+  newInt.toList().collect {
+    i++
+    if (i <= oldSize) {
+      newArray << normalizeNumber(it.toInteger())
+    }
+  }
+
+  i = 0
+  oldInt.toList().collect {
+    i++
+    if (i <= newArray.size()) {
+      oldArray << normalizeNumber(it.toInteger())
+    }
+  }
+
+  def result = true
+  i = 0
+  newArray.each { num->
+    i++
+    if (newArray.join() == oldArray.join()) {
+      result = false
+    }
+  }
+  return result
+}
+
+def normalizeNumber(number) {
+  def result = null
+  switch (number) {
+    case [1,2]:
+      result = 1
+      break
+    case [3,4]:
+      result = 2
+      break
+    case [5,6]:
+      result = 3
+      break
+    case [7,8]:
+      result = 4
+      break
+    case [9,0]:
+      result = 5
+      break
+  }
+  return result
 }
 
 def setupPageDescription(){
@@ -531,6 +672,8 @@ private initialize() {
   revokeDisabledUsers()
   reconcileCodes()
   lockErrorLoopReset()
+  initalizeLockData()
+
   log.debug "state: ${state}"
 }
 
@@ -551,15 +694,24 @@ def resetCodeUsage(i) {
 def enableUser(i) {
   state."userState${i}".enabled = true
 }
-def lockErrorLoopReset() {
-  state.error_loop_count = 0
-  def i = 0
+
+def initalizeLockData() {
   locks.each { lock->
-    i = i + 1
-    state."lock${i}" = [:]
-    state."lock${i}".error_loop = false
+    if (state."lock${lock.id}" == null) {
+      state."lock${lock.id}" = [:]
+    }
   }
 }
+def lockErrorLoopReset() {
+  state.error_loop_count = 0
+  locks.each { lock->
+    if (state."lock${lock.id}" == null) {
+      state."lock${lock.id}" = [:]
+    }
+    state."lock${lock.id}".error_loop = false
+  }
+}
+
 
 def locationHandler(evt) {
   log.debug "locationHandler evt: ${evt.value}"
@@ -825,11 +977,17 @@ def codereturn(evt) {
       if (codeNumber == "") {
         if (notifyAccessEnd) {
           def message = "${userName} no longer has access to ${evt.displayName}"
+          if (codeNumber.isNumber()) {
+            state."lock${evt.deviceId}".codes."slot${codeSlot}" = codeNumber
+          }
           send(message)
         }
       } else {
         if (notifyAccessStart) {
           def message = "${userName} now has access to ${evt.displayName}"
+          if (codeNumber.isNumber()) {
+            state."lock${evt.deviceId}".codes."slot${codeSlot}" = codeNumber
+          }
           send(message)
         }
       }
@@ -1023,25 +1181,16 @@ def pollCodeReport(evt) {
       }
     }
   }
-  def i = 0
-  def currentLockNumber = 0
-  def currentLock = [:]
-  locks.each { lock->
-    i = i + 1
-    if (lock.id == evt.deviceId) {
-      currentLock = lock
-      currentLockNumber = i
-    }
-  }
 
-  populateDiscovery(codeData, currentLockNumber)
+  def currentLock = locks.find{it.id == evt.deviceId}
+  populateDiscovery(codeData, currentLock)
 
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
     runIn(60*2, doPoll)
 
     //Lock is in an error state
-    state."lock${currentLockNumber}".error_loop = true
+    state."lock${currentLock.id}".error_loop = true
     def error_number = state.error_loop_count + 1
     if (error_number <= 10) {
       log.debug "sendCodes fix is: ${json} Error: ${error_number}/10"
@@ -1057,12 +1206,13 @@ def pollCodeReport(evt) {
         def name = settings."userName${usedIndex}"
         if (state."userState${usedIndex}".enabled) {
           state."userState${usedIndex}".enabled = false
+          state."userState${usedIndex}".disabledReason = "Controller failed to set code"
           send("Controller failed to set code for ${name}")
         }
       }
     }
   } else {
-    state."lock${currentLockNumber}".error_loop = false
+    state."lock${currentLock.id}".error_loop = false
     if (allCodesDone) {
       lockErrorLoopReset()
     } else {
@@ -1115,11 +1265,10 @@ private sendMessage(msg) {
   }
 }
 
-def populateDiscovery(codeData, lockNumber) {
-  def codes = []
-  (1..codeData.codes).each { user->
-    codes << [user, codeData."code${user}"]
+def populateDiscovery(codeData, lock) {
+  def codes = [:]
+  (1..codeData.codes).each { slot->
+    codes."slot${slot}" = codeData."code${slot}"
   }
-  state."lock${lockNumber}".codes = codes
-  log.debug state."lock${lockNumber}".codes
+  state."lock${lock.id}".codes = codes
 }
