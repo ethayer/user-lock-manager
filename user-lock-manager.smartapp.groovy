@@ -111,8 +111,8 @@ def userPage(params) {
       input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
       def title = "Code (4 to 8 digits)"
       locks.each { lock->
-        if (lock.latestValue('pinLength')) {
-          title = "Code (Must be ${lock.pinLength} digits)"
+        if (lock.hasValue('pinLength')) {
+          title = "Code (Must be ${lock.latestValue('pinLength')} digits)"
         }
       }
       input(name: "userCode${i}", type: "text", title: title, required: false, defaultValue: settings."userCode${i}", refreshAfterSelection: true)
