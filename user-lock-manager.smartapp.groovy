@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v3.9
+ *  User Lock Manager v4.0
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -42,6 +42,8 @@ def rootPage() {
     }
 
     if (locks) {
+      initalizeLockData()
+
       section {
         input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
@@ -65,6 +67,9 @@ def setupPage() {
           if (!state."userState${user}") {
             //there's no values, so reset
             resetCodeUsage(user)
+          }
+          if (settings."userCode${user}" && settings."userSlot${user}") {
+            getConflicts(settings."userSlot${user}")
           }
           href(name: "toUserPage${user}", page: "userPage", params: [number: user], required: false, description: userHrefDescription(user), title: userHrefTitle(user), state: userPageState(user) )
         }
@@ -90,8 +95,8 @@ def userPage(params) {
         href(name: "toreEnableUserPage", title: "Reset User", page: "reEnableUserPage", params: [number: i], description: "Tap to reset")
       }
     }
-    if (settings."userCode${i}") {
-      def conflict = getConflicts(i)
+    if (settings."userCode${i}" && settings."userSlot${i}") {
+      def conflict = getConflicts(settings."userSlot${i}")
       if (conflict.has_conflict) {
         section("Conflicts:") {
           locks.each { lock->
@@ -337,6 +342,7 @@ def infoRefreshPage() {
 
 def lockInfoPage(params) {
   dynamicPage(name:"lockInfoPage", title:"Lock Info") {
+
     def lock = getLock(params)
     section() {
       if (lock) {
@@ -399,17 +405,13 @@ def getConflicts(i) {
 def isUnique(newInt, oldInt) {
   def newArray = []
   def oldArray = []
-
-
-  // just to get the size
-  oldInt.toList().collect { oldArray << normalizeNumber(it.toInteger()) }
-  def oldSize = oldArray.size()
-  oldArray = []
+  def result = true
 
   def i = 0
+  // Get a normalized sequence, at the same length
   newInt.toList().collect {
     i++
-    if (i <= oldSize) {
+    if (i <= oldInt.length()) {
       newArray << normalizeNumber(it.toInteger())
     }
   }
@@ -417,16 +419,16 @@ def isUnique(newInt, oldInt) {
   i = 0
   oldInt.toList().collect {
     i++
-    if (i <= newArray.size()) {
+    if (i <= newInt.length()) {
       oldArray << normalizeNumber(it.toInteger())
     }
   }
 
-  def result = true
   i = 0
   newArray.each { num->
     i++
     if (newArray.join() == oldArray.join()) {
+      // The normalized numbers are the same!
       result = false
     }
   }
@@ -435,6 +437,8 @@ def isUnique(newInt, oldInt) {
 
 def normalizeNumber(number) {
   def result = null
+  // RULE: Since some locks share buttons, make sure unique.
+  // Even locks with 10-keys follow this rule! (annoyingly)
   switch (number) {
     case [1,2]:
       result = 1
