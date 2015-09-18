@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0
+ *  User Lock Manager v4.0.1
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -111,7 +111,7 @@ def userPage(params) {
       input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
       def title = "Code (4 to 8 digits)"
       locks.each { lock->
-        if (lock.hasValue('pinLength')) {
+        if (lock.hasAttribute('pinLength')) {
           title = "Code (Must be ${lock.latestValue('pinLength')} digits)"
         }
       }
@@ -403,6 +403,12 @@ def getConflicts(i) {
 }
 
 def isUnique(newInt, oldInt) {
+
+  if (newInt == null || oldInt == null) {
+    // if either number is null, break here.
+    return true
+  }
+
   def newArray = []
   def oldArray = []
   def result = true
