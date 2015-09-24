@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.1
+ *  User Lock Manager v4.0.2
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -100,7 +100,7 @@ def userPage(params) {
       if (conflict.has_conflict) {
         section("Conflicts:") {
           locks.each { lock->
-            if (conflict."lock${lock.id}".conflicts != null) {
+            if (conflict."lock${lock.id}" && conflict."lock${lock.id}".conflicts != []) {
               paragraph "${lock.displayName} slot ${fancyString(conflict."lock${lock.id}".conflicts)}"
             }
           }
@@ -394,6 +394,7 @@ def getConflicts(i) {
           state."userState${i}".enabled = false
           state."userState${i}".disabledReason = "Code Conflict Detected"
           conflict."lock${lock.id}".conflicts << ind
+          log.debug conflict."lock${lock.id}".conflicts
         }
       }
     }
@@ -1277,7 +1278,11 @@ private sendMessage(msg) {
 
 def populateDiscovery(codeData, lock) {
   def codes = [:]
-  (1..codeData.codes).each { slot->
+  def codeSlots = 30
+  if (codeData.codes) {
+    codeSlots = codeData.codes
+  }
+  (1..codeSlots).each { slot->
     codes."slot${slot}" = codeData."code${slot}"
   }
   state."lock${lock.id}".codes = codes
