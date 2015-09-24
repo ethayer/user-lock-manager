@@ -119,6 +119,7 @@ def userPage(params) {
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
     }
     section {
+      input(name: "notify${i}", title: "Notify when code is used?", type: "bool", required: false, defaultValue: settings."notify${i}")
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
       input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
       def phrases = location.helloHome?.getPhrases()*.label
@@ -1047,7 +1048,12 @@ def codeUsed(evt) {
         runIn(60*2, doPoll)
         message += ".  Now burning code."
       }
-      send(message)
+      //Only send notificaton if set to burn code or notify per user
+      if(settings."burnCode${usedIndex}") {
+          send(message)
+      } else if (settings."notify${usedIndex}") {
+          send(message)
+      }
     }
   }
   if (homePhrases) {
