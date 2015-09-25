@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.2
+ *  User Lock Manager v4.0.3
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -119,7 +119,7 @@ def userPage(params) {
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
     }
     section {
-      input(name: "notify${i}", title: "Notify when code is used?", type: "bool", required: false, defaultValue: settings."notify${i}")
+      input(name: "dontNotify${i}", title: "Mute entry Notification", type: "bool", required: false, defaultValue: settings."notify${i}")
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
       input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
       def phrases = location.helloHome?.getPhrases()*.label
@@ -1049,10 +1049,8 @@ def codeUsed(evt) {
         message += ".  Now burning code."
       }
       //Only send notificaton if set to burn code or notify per user
-      if(settings."burnCode${usedIndex}") {
-          send(message)
-      } else if (settings."notify${usedIndex}") {
-          send(message)
+      if(settings."burnCode${usedIndex}" && settings."dontNotify${usedIndex}" != true) {
+        send(message)
       }
     }
   }
