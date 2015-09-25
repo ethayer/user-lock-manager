@@ -1048,8 +1048,8 @@ def codeUsed(evt) {
         runIn(60*2, doPoll)
         message += ".  Now burning code."
       }
-      //Only send notificaton if set to burn code or notify per user
-      if(settings."burnCode${usedIndex}" && settings."dontNotify${usedIndex}" != true) {
+      //Only send notificaton if set to burn code or not muted
+      if(settings."burnCode${usedIndex}" || settings."dontNotify${usedIndex}" != true) {
         send(message)
       }
     }
