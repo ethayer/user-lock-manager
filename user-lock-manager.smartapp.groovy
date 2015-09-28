@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.6
+ *  User Lock Manager v4.0.7
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -324,7 +324,9 @@ def infoPage() {
     }
     section("Locks") {
       if (theLocks) {
+        def i = 0
         theLocks.each { lock->
+          i++
           href(name: "toLockInfoPage${i}", page: "lockInfoPage", params: [id: lock.id], required: false, title: lock.displayName )
         }
       }
@@ -345,8 +347,8 @@ def lockInfoPage(params) {
   dynamicPage(name:"lockInfoPage", title:"Lock Info") {
 
     def lock = getLock(params)
-    section() {
-      if (lock) {
+    if (lock) {
+      section("${lock.displayName}") {
         if (state."lock${lock.id}".codes != null) {
           def i = 0
           def pass = ''
