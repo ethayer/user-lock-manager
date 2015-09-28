@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.4
+ *  User Lock Manager v4.0.5
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -119,7 +119,7 @@ def userPage(params) {
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
     }
     section {
-      input(name: "dontNotify${i}", title: "Mute entry notification?", type: "bool", required: false, defaultValue: settings."notify${i}")
+      input(name: "dontNotify${i}", title: "Mute entry notification?", type: "bool", required: false, defaultValue: settings."dontNotify${i}")
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
       input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
       def phrases = location.helloHome?.getPhrases()*.label
