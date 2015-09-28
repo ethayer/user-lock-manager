@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.5
+ *  User Lock Manager v4.0.6
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -38,10 +38,10 @@ def rootPage() {
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
 
     section("Which Locks?") {
-      input "locks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
+      input "theLocks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
     }
 
-    if (locks) {
+    if (theLocks) {
       initalizeLockData()
 
       section {
@@ -99,7 +99,7 @@ def userPage(params) {
       def conflict = getConflicts(settings."userSlot${i}")
       if (conflict.has_conflict) {
         section("Conflicts:") {
-          locks.each { lock->
+          theLocks.each { lock->
             if (conflict."lock${lock.id}" && conflict."lock${lock.id}".conflicts != []) {
               paragraph "${lock.displayName} slot ${fancyString(conflict."lock${lock.id}".conflicts)}"
             }
@@ -110,7 +110,7 @@ def userPage(params) {
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
       def title = "Code (4 to 8 digits)"
-      locks.each { lock->
+      theLocks.each { lock->
         if (lock.hasAttribute('pinLength')) {
           title = "Code (Must be ${lock.latestValue('pinLength')} digits)"
         }
@@ -314,17 +314,17 @@ def getLock(params) {
   }
 
   state.lastLock = id
-  return locks.find{it.id == id}
+  return theLocks.find{it.id == id}
 }
 
-def infoPage(params) {
+def infoPage() {
   dynamicPage(name:"infoPage", title:"Lock Info") {
     section() {
       href(name: "toInfoRefreshPage", page: "infoRefreshPage", title: "Refresh Lock Data", description: 'Tap to refresh')
     }
     section("Locks") {
-      if (locks) {
-        locks.each { lock->
+      if (theLocks) {
+        theLocks.each { lock->
           href(name: "toLockInfoPage${i}", page: "lockInfoPage", params: [id: lock.id], required: false, title: lock.displayName )
         }
       }
@@ -373,7 +373,7 @@ public humanReadableEndDate() {
 }
 
 def manualPoll() {
-  locks.poll()
+  theLocks.poll()
 }
 
 def getConflicts(i) {
@@ -383,7 +383,7 @@ def getConflicts(i) {
   conflict.has_conflict = false
 
 
-  locks.each { lock->
+  theLocks.each { lock->
     if (state."lock${lock.id}".codes) {
       conflict."lock${lock.id}" = [:]
       conflict."lock${lock.id}".conflicts = []
@@ -618,7 +618,7 @@ def schedulingHrefDescription() {
       descriptionParts << "On ${fancyString(days)},"
     }
 
-    descriptionParts << "${fancyDeviceString(locks)} will be accessible"
+    descriptionParts << "${fancyDeviceString(theLocks)} will be accessible"
     if ((andOrTime != null) || (modeStart == null)) {
       if (startTime) {
         descriptionParts << "at ${humanReadableStartDate()}"
@@ -677,9 +677,9 @@ private initialize() {
 
   subscribe(location, locationHandler)
 
-  subscribe(locks, "codeReport", codereturn)
-  subscribe(locks, "lock", codeUsed)
-  subscribe(locks, "reportAllCodes", pollCodeReport, [filterEvents:false])
+  subscribe(theLocks, "codeReport", codereturn)
+  subscribe(theLocks, "lock", codeUsed)
+  subscribe(theLocks, "reportAllCodes", pollCodeReport, [filterEvents:false])
 
   revokeDisabledUsers()
   reconcileCodes()
@@ -708,7 +708,7 @@ def enableUser(i) {
 }
 
 def initalizeLockData() {
-  locks.each { lock->
+  theLocks.each { lock->
     if (state."lock${lock.id}" == null) {
       state."lock${lock.id}" = [:]
     }
@@ -716,7 +716,7 @@ def initalizeLockData() {
 }
 def lockErrorLoopReset() {
   state.error_loop_count = 0
-  locks.each { lock->
+  theLocks.each { lock->
     if (state."lock${lock.id}" == null) {
       state."lock${lock.id}" = [:]
     }
@@ -1044,7 +1044,7 @@ def codeUsed(evt) {
         }
       }
       if(settings."burnCode${usedIndex}") {
-        locks.deleteCode(codeData.usedCode)
+        theLocks.deleteCode(codeData.usedCode)
         runIn(60*2, doPoll)
         message += ".  Now burning code."
       }
@@ -1091,7 +1091,7 @@ def revokeDisabledUsers() {
   }
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
-    locks.updateCodes(json)
+    theLocks.updateCodes(json)
     runIn(60*2, doPoll)
   }
 }
@@ -1101,7 +1101,7 @@ def doPoll() {
   if (!allCodesDone()) {
     state.error_loop_count = state.error_loop_count + 1
   }
-  locks.poll()
+  theLocks.poll()
 }
 
 def grantAccess() {
@@ -1117,7 +1117,7 @@ def grantAccess() {
   }
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
-    locks.updateCodes(json)
+    theLocks.updateCodes(json)
     runIn(60*2, doPoll)
   }
 }
@@ -1129,7 +1129,7 @@ def revokeAccess() {
   }
   def json = new groovy.json.JsonBuilder(array).toString()
   if (json != '[]') {
-    locks.updateCodes(json)
+    theLocks.updateCodes(json)
     runIn(60*2, doPoll)
   }
 }
@@ -1197,7 +1197,7 @@ def pollCodeReport(evt) {
     }
   }
 
-  def currentLock = locks.find{it.id == evt.deviceId}
+  def currentLock = theLocks.find{it.id == evt.deviceId}
   populateDiscovery(codeData, currentLock)
 
   def json = new groovy.json.JsonBuilder(array).toString()
@@ -1239,7 +1239,7 @@ def pollCodeReport(evt) {
 def allCodesDone() {
   def i = 0
   def codeComplete = true
-  locks.each { lock->
+  theLocks.each { lock->
     i++
     if (state."lock${i}".error_loop == true) {
       codeComplete = false
