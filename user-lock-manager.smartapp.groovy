@@ -392,7 +392,7 @@ def getConflicts(i) {
       def ind = 0
       state."lock${lock.id}".codes.each { code ->
         ind++
-        if (currentSlot.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
+        if (currentSlot?.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
           conflict.has_conflict = true
           state."userState${i}".enabled = false
           state."userState${i}".disabledReason = "Code Conflict Detected"
