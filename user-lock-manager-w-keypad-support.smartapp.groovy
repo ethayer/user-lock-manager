@@ -5,7 +5,7 @@
  *
  */
 definition(
-    name: "User Lock Manager",
+    name: "User Lock Manager w/ Keypad Support",
     namespace: "ethayer",
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
@@ -29,6 +29,7 @@ definition(
   page(name: "resetCodeUsagePage")
   page(name: "reEnableUserPage")
   page(name: "infoPage")
+  page(name: "keypadPage")
   page(name: "infoRefreshPage")
   page(name: "lockInfoPage")
 }
@@ -38,7 +39,7 @@ def rootPage() {
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
 
     section("Which Locks?") {
-      input "theLocks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
+      input "theLocks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true      
     }
 
     if (theLocks) {
@@ -48,6 +49,7 @@ def rootPage() {
         input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toInfoPage", page: "infoPage", title: "Lock Info")
+        href(name: "toKeypadPage", page: "keypadPage", title: "Keypad Info (optional)")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Global Hello Home")
@@ -333,6 +335,25 @@ def infoPage() {
     }
   }
 }
+
+def keypadPage() {
+	dynamicPage(name: "keypadPage",title: "Keypad Info (optional)") {
+        section("Settings") {
+            // TODO: put inputs here
+            input(name: "keypad", title: "Keypad", type: "device.centraliteKeypad", multiple: false, required: false)
+        }
+        def routines = location.helloHome?.getPhrases()*.label
+        routines?.sort()
+        section("Routines", hideable: true, hidden: true) {
+        	input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: routines, required: false)
+            input(name: "disarmRoutine", title: "Disarm routine", type: "enum", options: routines, required: false)
+            input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: routines, required: false)
+            //input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
+        }
+    }
+
+}
+
 def infoRefreshPage() {
   dynamicPage(name:"infoRefreshPage", title:"Lock Info") {
     section() {
@@ -682,6 +703,8 @@ private initialize() {
   subscribe(theLocks, "codeReport", codereturn)
   subscribe(theLocks, "lock", codeUsed)
   subscribe(theLocks, "reportAllCodes", pollCodeReport, [filterEvents:false])
+  subscribe(location,"alarmSystemStatus",alarmStatusHandler)
+  subscribe(keypad,"codeEntered",codeEntryHandler)
 
   revokeDisabledUsers()
   reconcileCodes()
@@ -1292,4 +1315,67 @@ def populateDiscovery(codeData, lock) {
     codes."slot${slot}" = codeData."code${slot}"
   }
   state."lock${lock.id}".codes = codes
+}
+
+private String getPIN(){
+	return settings.pin.value.toString().padLeft(4,'0')
+}
+
+def alarmStatusHandler(event) {
+	log.debug "Keypad manager caught alarm status change: "+event.value
+    if (event.value == "off") keypad?.setDisarmed()
+    else if (event.value == "away") keypad?.setArmedAway()
+    else if (event.value == "stay") keypad?.setArmedStay()
+}
+
+private sendSHMEvent(String shmState){
+	def event = [name:"alarmSystemStatus", value: shmState, 
+    			displayed: true, description: "System Status is ${shmState}"]
+                log.debug "test ${event}"
+    sendLocationEvent(event)
+}
+
+private execRoutine(armMode) {
+	if (armMode == 'away') location.helloHome?.execute(settings.armRoutine)
+    else if (armMode == 'stay') location.helloHome?.execute(settings.stayRoutine)
+    else if (armMode == 'off') location.helloHome?.execute(settings.disarmRoutine)    
+}
+
+def codeEntryHandler(evt){
+	//do stuff
+    log.debug "Caught code entry event! ${evt.value.value}"
+    
+    def codeEntered = evt.value as String
+    
+    def data = evt.data as String
+    def armMode = ''
+    
+    if (data == '0') armMode = 'off'
+    else if (data == '3') armMode = 'away'
+    else if (data == '1') armMode = 'stay'
+    else if (data == '2') armMode = 'stay'	//Currently no separate night mode for SHM, set to 'stay'
+    else {
+    	log.error "${app.label}: Unexpected arm mode sent by keypad!: "+data
+        return []
+        }
+        
+        def i = 0
+        i = settings.maxUsers
+    while (i > 0)
+    {
+    def correctCode = settings."userCode${i}" as String
+    if (codeEntered == correctCode) {
+    	log.debug "Correct PIN entered. Change SHM state to ${armMode}"
+        keypad.acknowledgeArmRequest(data)
+        sendSHMEvent(armMode)
+        execRoutine(armMode)
+        i = 0
+    }
+    i--
+    }
+    /*else {
+    	log.debug "Invalid PIN"
+        //Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
+    	keypad.sendInvalidKeycodeResponse()
+    }*/
 }
