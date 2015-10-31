@@ -115,7 +115,7 @@ def userPage(params) {
           title = "Code (Must be ${lock.latestValue('pinLength')} digits)"
         }
       }
-      input(name: "userCode${i}", type: "password", title: title, required: false, defaultValue: settings."userCode${i}", refreshAfterSelection: true)
+      input(name: "userCode${i}", type: "text", title: title, required: true, refreshAfterSelection: true)
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
     }
     section {
