@@ -340,7 +340,7 @@ def keypadPage() {
 	dynamicPage(name: "keypadPage",title: "Keypad Info (optional)") {
         section("Settings") {
             // TODO: put inputs here
-            input(name: "keypad", title: "Keypad", type: "device.centraliteKeypad", multiple: false, required: false)
+            input(name: "keypad", title: "Keypad", type: "capability.lockCodes", multiple: false, required: false)
         }
         def routines = location.helloHome?.getPhrases()*.label
         routines?.sort()
