@@ -1402,6 +1402,14 @@ def codeEntryHandler(evt){
         	message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
         }
         
+        def codeData = new JsonSlurper().parseText(evt.data)
+        
+        if(settings."burnCode${i}") {
+        	theLocks.deleteCode(codeData.usedCode)
+        	runIn(60*2, doPoll)
+        	message += ".  Now burning code."
+        }
+        
         //log.debug "${message}"
         //log.debug "Initial Usage Count:" + state."userState${i}".usage
         state."userState${i}".usage = state."userState${i}".usage + 1
