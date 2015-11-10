@@ -1372,7 +1372,7 @@ def codeEntryHandler(evt){
     if (codeEntered == correctCode) {
     	log.debug "Correct PIN entered. Change SHM state to ${armMode}"  
         
-        log.debug "Delay: ${j}"
+        log.debug "Delay: ${armDelay}"
         log.debug "Data: ${data}"
         log.debug "armMode: ${armMode}"
         if (data == "0")
@@ -1400,7 +1400,10 @@ def codeEntryHandler(evt){
         	message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
         }
         
+        log.debug "${message}"
+        log.debug "Initial Usage Count:" + state."userState${i}".usage
         state."userState${i}".usage = state."userState${i}".usage + 1
+        log.debug "Final Usage Count:" + state."userState${i}".usage
         send(message)
         i = 0
     }
