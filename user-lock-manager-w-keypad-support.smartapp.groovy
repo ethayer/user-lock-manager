@@ -349,7 +349,7 @@ def keypadPage() {
         	input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: routines, required: false)
             input(name: "disarmRoutine", title: "Disarm routine", type: "enum", options: routines, required: false)
             input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: routines, required: false)
-            input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
+            //input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
             input(name: "armDelay", title: "Arm Delay (in seconds)", type: "number", required: false)
         }
     }
@@ -1371,7 +1371,6 @@ def codeEntryHandler(evt){
     def correctCode = settings."userCode${i}" as String
     if (codeEntered == correctCode) {
     	log.debug "Correct PIN entered. Change SHM state to ${armMode}"  
-        
         log.debug "Delay: ${armDelay}"
         log.debug "Data: ${data}"
         log.debug "armMode: ${armMode}"
@@ -1403,13 +1402,13 @@ def codeEntryHandler(evt){
         	message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
         }
         
-        log.debug "${message}"
-        log.debug "Initial Usage Count:" + state."userState${i}".usage
+        //log.debug "${message}"
+        //log.debug "Initial Usage Count:" + state."userState${i}".usage
         state."userState${i}".usage = state."userState${i}".usage + 1
-        log.debug "Final Usage Count:" + state."userState${i}".usage
+        //log.debug "Final Usage Count:" + state."userState${i}".usage
         send(message)
         i = 0
-    }
+    	}
     i--
     }
     /*else {
