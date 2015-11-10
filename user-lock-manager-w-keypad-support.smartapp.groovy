@@ -346,10 +346,10 @@ def keypadPage() {
         def routines = location.helloHome?.getPhrases()*.label
         routines?.sort()
         section("Routines", hideable: true, hidden: true) {
-        	input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: routines, required: false)
+            input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: routines, required: false)
             input(name: "disarmRoutine", title: "Disarm routine", type: "enum", options: routines, required: false)
             input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: routines, required: false)
-            //input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
+            input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
             input(name: "armDelay", title: "Arm Delay (in seconds)", type: "number", required: false)
         }
     }
