@@ -2,6 +2,7 @@
  *  User Lock Manager v4.0.7
  *
  *  Copyright 2015 Erik Thayer
+ *  Keypad support added by BLebson
  *
  */
 definition(
@@ -348,7 +349,8 @@ def keypadPage() {
         	input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: routines, required: false)
             input(name: "disarmRoutine", title: "Disarm routine", type: "enum", options: routines, required: false)
             input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: routines, required: false)
-            //input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
+            input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
+            input(name: "armDelay", title: "Arm Delay (in seconds)", type: "number", required: false)
         }
     }
 
@@ -1349,6 +1351,7 @@ def codeEntryHandler(evt){
     
     def data = evt.data as String
     def armMode = ''
+    def currentarmMode = keypad.currentValue("armMode")
     
     if (data == '0') armMode = 'off'
     else if (data == '3') armMode = 'away'
@@ -1360,15 +1363,49 @@ def codeEntryHandler(evt){
         }
         
         def i = 0
+        def j = 0
+        
         i = settings.maxUsers
     while (i > 0)
     {
     def correctCode = settings."userCode${i}" as String
     if (codeEntered == correctCode) {
-    	log.debug "Correct PIN entered. Change SHM state to ${armMode}"
-        keypad.acknowledgeArmRequest(data)
-        sendSHMEvent(armMode)
-        execRoutine(armMode)
+    	log.debug "Correct PIN entered. Change SHM state to ${armMode}"  
+        if (currentarmMode == 'disarmed')
+        {
+        	log.debug "Current mode is: ${currentarmMode}"
+            j = armDelay                    
+            
+        }
+        else
+        {
+        	j = 0
+        }
+        
+        log.debug "Delay: ${j}"
+        log.debug "Data: ${data}"
+        log.debug "armMode: ${armMode}"
+        if (data == "0")
+        {
+        	log.debug "sendDisarmCommand"
+        	runIn(0, "sendDisarmCommand")    
+        }
+        else if (data == "1")
+        {
+        	log.debug "sendStayCommand"
+        	runIn(armDelay, "sendStayCommand")    
+        }
+        else if (data == "2")
+        {
+        	log.debug "sendNightCommand"
+        	runIn(armDelay, "sendNightCommand")    
+        }
+        else if (data == "3")
+        {
+        	log.debug "sendArmCommand"
+        	runIn(armDelay, "sendArmCommand")    
+        }
+        
         i = 0
     }
     i--
@@ -1378,4 +1415,32 @@ def codeEntryHandler(evt){
         //Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
     	keypad.sendInvalidKeycodeResponse()
     }*/
+}
+def sendArmCommand()
+{	
+	log.debug "Sending Arm Command."
+	keypad.acknowledgeArmRequest(3)
+    sendSHMEvent("away")
+    execRoutine("away")
+}
+def sendDisarmCommand()
+{
+	log.debug "Sending Disarm Command."
+	keypad.acknowledgeArmRequest(0)
+    sendSHMEvent("off")
+    execRoutine("off")
+}
+def sendStayCommand()
+{
+	log.debug "Sending Stay Command."
+	keypad.acknowledgeArmRequest(1)
+    sendSHMEvent("stay")
+    execRoutine("stay")
+}
+def sendNightCommand()
+{
+	log.debug "Sending Night Command."
+	keypad.acknowledgeArmRequest(2)
+    sendSHMEvent("stay")
+    execRoutine("stay")
 }
