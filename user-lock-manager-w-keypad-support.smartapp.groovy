@@ -341,7 +341,7 @@ def keypadPage() {
 	dynamicPage(name: "keypadPage",title: "Keypad Info (optional)") {
         section("Settings") {
             // TODO: put inputs here
-            input(name: "keypad", title: "Keypad", type: "capability.lockCodes", multiple: false, required: false)
+            input(name: "keypad", title: "Keypad", type: "capability.lockCodes", multiple: true, required: false)
         }
         def routines = location.helloHome?.getPhrases()*.label
         routines?.sort()
@@ -1363,7 +1363,7 @@ def codeEntryHandler(evt){
         }
         
         def i = 0
-        def j = 0
+        def message
         
         i = settings.maxUsers
     while (i > 0)
@@ -1371,16 +1371,6 @@ def codeEntryHandler(evt){
     def correctCode = settings."userCode${i}" as String
     if (codeEntered == correctCode) {
     	log.debug "Correct PIN entered. Change SHM state to ${armMode}"  
-        if (currentarmMode == 'disarmed')
-        {
-        	log.debug "Current mode is: ${currentarmMode}"
-            j = armDelay                    
-            
-        }
-        else
-        {
-        	j = 0
-        }
         
         log.debug "Delay: ${j}"
         log.debug "Data: ${data}"
@@ -1388,24 +1378,30 @@ def codeEntryHandler(evt){
         if (data == "0")
         {
         	log.debug "sendDisarmCommand"
-        	runIn(0, "sendDisarmCommand")    
+        	runIn(0, "sendDisarmCommand")   
+        	message = "${evt.displayName} was disarmed by ${unlockUserName}"
         }
         else if (data == "1")
         {
         	log.debug "sendStayCommand"
         	runIn(armDelay, "sendStayCommand")    
+        	message = "${evt.displayName} was armed to 'Stay' by ${unlockUserName}"
         }
         else if (data == "2")
         {
         	log.debug "sendNightCommand"
         	runIn(armDelay, "sendNightCommand")    
+        	message = "${evt.displayName} was armed to 'Night' by ${unlockUserName}"
         }
         else if (data == "3")
         {
         	log.debug "sendArmCommand"
         	runIn(armDelay, "sendArmCommand")    
+        	message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
         }
         
+        state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
+        send(message)
         i = 0
     }
     i--
