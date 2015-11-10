@@ -1400,7 +1400,7 @@ def codeEntryHandler(evt){
         	message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
         }
         
-        state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
+        state."userState${i}".usage = state."userState${i}".usage + 1
         send(message)
         i = 0
     }
