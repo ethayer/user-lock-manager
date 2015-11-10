@@ -1375,6 +1375,9 @@ def codeEntryHandler(evt){
         log.debug "Delay: ${armDelay}"
         log.debug "Data: ${data}"
         log.debug "armMode: ${armMode}"
+        
+        def unlockUserName = settings."userName${i}"
+        
         if (data == "0")
         {
         	log.debug "sendDisarmCommand"
