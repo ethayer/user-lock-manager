@@ -351,6 +351,7 @@ def keypadPage() {
             input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: routines, required: false)
             input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
             input(name: "armDelay", title: "Arm Delay (in seconds)", type: "number", required: false)
+            input(name: "notifyIncorrectPin", title: "Notify you when incorrect code is used?", type: "bool", required: false)
         }
     }
 
@@ -1091,20 +1092,29 @@ def performActions(evt) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
       // Global Hello Home
-      if (noRunPresence && doRunPresence == null) {
-        if (!anyoneHome(noRunPresence)) {
-          location.helloHome.execute(homePhrases)
-        }
-      } else if (doRunPresence && noRunPresence == null) {
-        if (anyoneHome(doRunPresence)) {
-          location.helloHome.execute(homePhrases)
-        }
-      } else if (doRunPresence && noRunPresence) {
-        if (anyoneHome(doRunPresence) && !anyoneHome(noRunPresence)) {
-          location.helloHome.execute(homePhrases)
-        }
-      } else {
-       location.helloHome.execute(homePhrases)
+      if(location.currentMode != homePhrases)
+      {
+          if (noRunPresence && doRunPresence == null) {
+            if (!anyoneHome(noRunPresence)) {
+              location.helloHome.execute(homePhrases)
+            }
+          } else if (doRunPresence && noRunPresence == null) {
+            if (anyoneHome(doRunPresence)) {
+              location.helloHome.execute(homePhrases)
+            }
+          } else if (doRunPresence && noRunPresence) {
+            if (anyoneHome(doRunPresence) && !anyoneHome(noRunPresence)) {
+              location.helloHome.execute(homePhrases)
+            }
+          } else {
+           location.helloHome.execute(homePhrases)
+          }
+      }
+      else
+      {
+      	def routineMessage = "Already in ${homePhrases}, skipping execution of routine."
+        log.debug routineMessage
+        send(routineMessage)
       }
     }
   }
@@ -1383,7 +1393,7 @@ def codeEntryHandler(evt){
         //log.debug "Delay: ${armDelay}"
         //log.debug "Data: ${data}"
         //log.debug "armMode: ${armMode}"
-        
+       
         def unlockUserName = settings."userName${i}"
         
         if (data == "0")
@@ -1416,7 +1426,7 @@ def codeEntryHandler(evt){
         	message += ".  Now burning code."
         }        
                 
-        //log.debug "${message}"
+        log.debug "${message}"
         //log.debug "Initial Usage Count:" + state."userState${i}".usage
         state."userState${i}".usage = state."userState${i}".usage + 1
         //log.debug "Final Usage Count:" + state."userState${i}".usage
@@ -1434,9 +1444,12 @@ def codeEntryHandler(evt){
     }
     if (changedMode == 1 && i == 0)
     {
-    	log.debug "Incorrect PIN"
-        def errorMsg = "Incorrect Code Entered: ${codeEntered}"
-        send(errorMsg)
+    	def errorMsg = "Incorrect Code Entered: ${codeEntered}"
+        if (notifyIncorrectPin)
+        {
+        	log.debug "Incorrect PIN"
+        	send(errorMsg)
+        }
         //Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
     	keypad.sendInvalidKeycodeResponse()
     }
