@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.8
+ *  User Lock Manager v4.0.9
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -151,7 +151,6 @@ def notificationPage() {
     section {
       input(name: "phone", type: "phone", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
       input(name: "notification", type: "bool", title: "Send A Push Notification", description: "Notification", required: false, submitOnChange: true)
-      input(name: "sendevent", type: "bool", title: "Send An Event Notification", description: "Event Notification", required: false, submitOnChange: true)
       if (phone != null || notification || sendevent) {
         input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
         input(name: "notifyAccessStart", title: "when granting access", type: "bool", required: false)
@@ -1248,7 +1247,7 @@ def allCodesDone() {
   def codeComplete = true
   theLocks.each { lock->
     i++
-    if (state."lock${i}".error_loop == true) {
+    if (state."lock${lock.id}".error_loop == true) {
       codeComplete = false
     }
   }
@@ -1278,12 +1277,11 @@ private send(msg) {
 private sendMessage(msg) {
   if (notification) {
     sendPush(msg)
+  } else {
+    sendNotificationEvent(msg)
   }
   if (phone) {
     sendSms(phone, msg)
-  }
-  if (sendevent) {
-    sendNotificationEvent(msg)
   }
 }
 
