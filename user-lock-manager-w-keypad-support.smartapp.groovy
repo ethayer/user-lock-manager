@@ -236,6 +236,7 @@ def onUnlockPage() {
           input "noRunPresence", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false
           input "doRunPresence", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false
           input name: "manualUnlock", title: "Initiate phrase on manual unlock also?", type: "bool", defaultValue: false, refreshAfterSelection: true
+          input(name: "modeIgnore", title: "Do not run Routine when in this mode", type: "mode", required: false, mutliple: false)
         }
       }
     }
@@ -1092,7 +1093,7 @@ def performActions(evt) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
       // Global Hello Home
-      if(location.currentMode != homePhrases) {
+      if(location.currentMode != modeIgnore) {
           if (noRunPresence && doRunPresence == null) {
             if (!anyoneHome(noRunPresence)) {
               location.helloHome.execute(homePhrases)
