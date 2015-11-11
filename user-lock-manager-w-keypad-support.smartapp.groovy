@@ -1369,7 +1369,7 @@ def codeEntryHandler(evt){
     while (i > 0)
     {
     def correctCode = settings."userCode${i}" as String
-    if (codeEntered == correctCode) {
+    if (codeEntered == correctCode && state."userState${i}".enabled == true) {
     	log.debug "Correct PIN entered. Change SHM state to ${armMode}"  
         log.debug "Delay: ${armDelay}"
         log.debug "Data: ${data}"
@@ -1403,13 +1403,13 @@ def codeEntryHandler(evt){
         }
         
         def codeData = new JsonSlurper().parseText(evt.data)
+        log.debug "${codeData.usedCode}"
         
         if(settings."burnCode${i}") {
-        	theLocks.deleteCode(codeData.usedCode)
-        	runIn(60*2, doPoll)
+        	state."userState${i}".enabled = false
         	message += ".  Now burning code."
-        }
-        
+        }        
+                
         //log.debug "${message}"
         //log.debug "Initial Usage Count:" + state."userState${i}".usage
         state."userState${i}".usage = state."userState${i}".usage + 1
