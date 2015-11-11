@@ -1092,8 +1092,7 @@ def performActions(evt) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
       // Global Hello Home
-      if(location.currentMode != homePhrases)
-      {
+      if(location.currentMode != homePhrases) {
           if (noRunPresence && doRunPresence == null) {
             if (!anyoneHome(noRunPresence)) {
               location.helloHome.execute(homePhrases)
@@ -1110,8 +1109,7 @@ def performActions(evt) {
            location.helloHome.execute(homePhrases)
           }
       }
-      else
-      {
+      else {
       	def routineMessage = "Already in ${homePhrases}, skipping execution of routine."
         log.debug routineMessage
         send(routineMessage)
@@ -1329,7 +1327,7 @@ def populateDiscovery(codeData, lock) {
   state."lock${lock.id}".codes = codes
 }
 
-private String getPIN(){
+private String getPIN() {
 	return settings.pin.value.toString().padLeft(4,'0')
 }
 
@@ -1340,7 +1338,7 @@ def alarmStatusHandler(event) {
     else if (event.value == "stay") keypad?.setArmedStay()
 }
 
-private sendSHMEvent(String shmState){
+private sendSHMEvent(String shmState) {
 	def event = [name:"alarmSystemStatus", value: shmState, 
     			displayed: true, description: "System Status is ${shmState}"]
                 log.debug "test ${event}"
@@ -1353,7 +1351,7 @@ private execRoutine(armMode) {
     else if (armMode == 'off') location.helloHome?.execute(settings.disarmRoutine)    
 }
 
-def codeEntryHandler(evt){
+def codeEntryHandler(evt) {
 	//do stuff
     log.debug "Caught code entry event! ${evt.value.value}"
     
@@ -1364,10 +1362,18 @@ def codeEntryHandler(evt){
     def currentarmMode = keypad.currentValue("armMode")
     def changedMode = 0
     
-    if (data == '0') armMode = 'off'
-    else if (data == '3') armMode = 'away'
-    else if (data == '1') armMode = 'stay'
-    else if (data == '2') armMode = 'stay'	//Currently no separate night mode for SHM, set to 'stay'
+    if (data == '0') {
+    	armMode = 'off'
+    }
+    else if (data == '3') {
+    	armMode = 'away'
+    }
+    else if (data == '1') {
+    	armMode = 'stay'
+    }
+    else if (data == '2') {
+    	armMode = 'stay' //Currently no separate night mode for SHM, set to 'stay'
+    }
     else {
     	log.error "${app.label}: Unexpected arm mode sent by keypad!: "+data
         return []
@@ -1377,8 +1383,7 @@ def codeEntryHandler(evt){
         def message = " "
         
         i = settings.maxUsers
-    while (i > 0)
-    {
+    while (i > 0) {
     
     log.debug "i =" + i
     def correctCode = settings."userCode${i}" as String
@@ -1387,8 +1392,7 @@ def codeEntryHandler(evt){
     
     log.debug "User Enabled: " + state."userState${i}".enabled
     
-    if (state."userState${i}".enabled == true)
-    {
+    if (state."userState${i}".enabled == true) {
     	log.debug "Correct PIN entered. Change SHM state to ${armMode}"  
         //log.debug "Delay: ${armDelay}"
         //log.debug "Data: ${data}"
@@ -1396,26 +1400,22 @@ def codeEntryHandler(evt){
        
         def unlockUserName = settings."userName${i}"
         
-        if (data == "0")
-        {
+        if (data == "0") {
         	//log.debug "sendDisarmCommand"
         	runIn(0, "sendDisarmCommand")   
         	message = "${evt.displayName} was disarmed by ${unlockUserName}"
         }
-        else if (data == "1")
-        {
+        else if (data == "1") {
         	//log.debug "sendStayCommand"
         	runIn(armDelay, "sendStayCommand")    
         	message = "${evt.displayName} was armed to 'Stay' by ${unlockUserName}"
         }
-        else if (data == "2")
-        {
+        else if (data == "2") {
         	//log.debug "sendNightCommand"
         	runIn(armDelay, "sendNightCommand")    
         	message = "${evt.displayName} was armed to 'Night' by ${unlockUserName}"
         }
-        else if (data == "3")
-        {
+        else if (data == "3") {
         	//log.debug "sendArmCommand"
         	runIn(armDelay, "sendArmCommand")    
         	message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
@@ -1433,20 +1433,18 @@ def codeEntryHandler(evt){
         send(message)
         i = 0
     	}
-        	else if (state."userState${i}".enabled == false){
-    			log.debug "PIN Disabled"
-        		//Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
-    			//keypad.sendInvalidKeycodeResponse()
-    		}
-        }
-        changedMode = 1
-    	i--
+        else if (state."userState${i}".enabled == false){
+    		log.debug "PIN Disabled"
+        	//Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
+    		//keypad.sendInvalidKeycodeResponse()
+    	}
     }
-    if (changedMode == 1 && i == 0)
-    {
+    changedMode = 1
+    i--
+    }
+if (changedMode == 1 && i == 0) {
     	def errorMsg = "Incorrect Code Entered: ${codeEntered}"
-        if (notifyIncorrectPin)
-        {
+        if (notifyIncorrectPin) {
         	log.debug "Incorrect PIN"
         	send(errorMsg)
         }
@@ -1455,31 +1453,27 @@ def codeEntryHandler(evt){
     }
    
 }
-def sendArmCommand()
-{	
+def sendArmCommand() {	
 	log.debug "Sending Arm Command."
 	keypad.acknowledgeArmRequest(3)
-    sendSHMEvent("away")
-    execRoutine("away")
+	sendSHMEvent("away")
+	execRoutine("away")
 }
-def sendDisarmCommand()
-{
+def sendDisarmCommand() {
 	log.debug "Sending Disarm Command."
 	keypad.acknowledgeArmRequest(0)
-    sendSHMEvent("off")
-    execRoutine("off")
+	sendSHMEvent("off")
+	execRoutine("off")
 }
-def sendStayCommand()
-{
+def sendStayCommand() {
 	log.debug "Sending Stay Command."
 	keypad.acknowledgeArmRequest(1)
-    sendSHMEvent("stay")
-    execRoutine("stay")
+	sendSHMEvent("stay")
+	execRoutine("stay")
 }
-def sendNightCommand()
-{
+def sendNightCommand() {
 	log.debug "Sending Night Command."
 	keypad.acknowledgeArmRequest(2)
-    sendSHMEvent("stay")
-    execRoutine("stay")
+	sendSHMEvent("stay")
+	execRoutine("stay")
 }
