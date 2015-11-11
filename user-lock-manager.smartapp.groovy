@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.7
+ *  User Lock Manager v4.0.8
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -392,12 +392,11 @@ def getConflicts(i) {
       def ind = 0
       state."lock${lock.id}".codes.each { code ->
         ind++
-        if (currentSlot.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
+        if (currentSlot?.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
           conflict.has_conflict = true
           state."userState${i}".enabled = false
           state."userState${i}".disabledReason = "Code Conflict Detected"
           conflict."lock${lock.id}".conflicts << ind
-          log.debug conflict."lock${lock.id}".conflicts
         }
       }
     }
@@ -413,13 +412,19 @@ def isUnique(newInt, oldInt) {
     return true
   }
 
+  if (!newInt.isInteger() || !newInt.isInteger()) {
+    // number is not an integer, can't check.
+    return true
+  }
+
+
   def newArray = []
   def oldArray = []
   def result = true
 
   def i = 0
   // Get a normalized sequence, at the same length
-  newInt.toList().collect {
+  newInt.toString().toList().collect {
     i++
     if (i <= oldInt.length()) {
       newArray << normalizeNumber(it.toInteger())
@@ -427,7 +432,7 @@ def isUnique(newInt, oldInt) {
   }
 
   i = 0
-  oldInt.toList().collect {
+  oldInt.toString().toList().collect {
     i++
     if (i <= newInt.length()) {
       oldArray << normalizeNumber(it.toInteger())
