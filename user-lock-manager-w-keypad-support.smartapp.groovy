@@ -6,7 +6,7 @@
  *
  */
 definition(
-    name: "User Lock Manager w/ Keypad Support",
+    name: "User Lock Manager",
     namespace: "ethayer",
     author: "Erik Thayer",
     description: "This app allows you to change, delete, and schedule user access.",
@@ -72,7 +72,7 @@ def setupPage() {
             resetCodeUsage(user)
           }
           if (settings."userCode${user}" && settings."userSlot${user}") {
-            getConflicts(settings."userSlot${user}")
+            //getConflicts(settings."userSlot${user}")
           }
           href(name: "toUserPage${user}", page: "userPage", params: [number: user], required: false, description: userHrefDescription(user), title: userHrefTitle(user), state: userPageState(user) )
         }
@@ -99,16 +99,16 @@ def userPage(params) {
       }
     }
     if (settings."userCode${i}" && settings."userSlot${i}") {
-      def conflict = getConflicts(settings."userSlot${i}")
-      if (conflict.has_conflict) {
-        section("Conflicts:") {
-          theLocks.each { lock->
-            if (conflict."lock${lock.id}" && conflict."lock${lock.id}".conflicts != []) {
-              paragraph "${lock.displayName} slot ${fancyString(conflict."lock${lock.id}".conflicts)}"
-            }
-          }
-        }
-      }
+      //def conflict = getConflicts(settings."userSlot${i}")
+      //if (conflict.has_conflict) {
+      //  section("Conflicts:") {
+      //    theLocks.each { lock->
+      //      if (conflict."lock${lock.id}" && conflict."lock${lock.id}".conflicts != []) {
+      //        paragraph "${lock.displayName} slot ${fancyString(conflict."lock${lock.id}".conflicts)}"
+      //      }
+      //    }
+      //  }
+      //}
     }
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
@@ -1352,6 +1352,7 @@ def codeEntryHandler(evt){
     def data = evt.data as String
     def armMode = ''
     def currentarmMode = keypad.currentValue("armMode")
+    def changedMode = 0
     
     if (data == '0') armMode = 'off'
     else if (data == '3') armMode = 'away'
@@ -1363,47 +1364,52 @@ def codeEntryHandler(evt){
         }
         
         def i = 0
-        def message
+        def message = " "
         
         i = settings.maxUsers
     while (i > 0)
     {
+    
+    log.debug "i =" + i
     def correctCode = settings."userCode${i}" as String
-    if (codeEntered == correctCode && state."userState${i}".enabled == true) {
+        
+    if (codeEntered == correctCode) {
+    
+    log.debug "User Enabled: " + state."userState${i}".enabled
+    
+    if (state."userState${i}".enabled == true)
+    {
     	log.debug "Correct PIN entered. Change SHM state to ${armMode}"  
-        log.debug "Delay: ${armDelay}"
-        log.debug "Data: ${data}"
-        log.debug "armMode: ${armMode}"
+        //log.debug "Delay: ${armDelay}"
+        //log.debug "Data: ${data}"
+        //log.debug "armMode: ${armMode}"
         
         def unlockUserName = settings."userName${i}"
         
         if (data == "0")
         {
-        	log.debug "sendDisarmCommand"
+        	//log.debug "sendDisarmCommand"
         	runIn(0, "sendDisarmCommand")   
         	message = "${evt.displayName} was disarmed by ${unlockUserName}"
         }
         else if (data == "1")
         {
-        	log.debug "sendStayCommand"
+        	//log.debug "sendStayCommand"
         	runIn(armDelay, "sendStayCommand")    
         	message = "${evt.displayName} was armed to 'Stay' by ${unlockUserName}"
         }
         else if (data == "2")
         {
-        	log.debug "sendNightCommand"
+        	//log.debug "sendNightCommand"
         	runIn(armDelay, "sendNightCommand")    
         	message = "${evt.displayName} was armed to 'Night' by ${unlockUserName}"
         }
         else if (data == "3")
         {
-        	log.debug "sendArmCommand"
+        	//log.debug "sendArmCommand"
         	runIn(armDelay, "sendArmCommand")    
         	message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
         }
-        
-        def codeData = new JsonSlurper().parseText(evt.data)
-        log.debug "${codeData.usedCode}"
         
         if(settings."burnCode${i}") {
         	state."userState${i}".enabled = false
@@ -1417,13 +1423,24 @@ def codeEntryHandler(evt){
         send(message)
         i = 0
     	}
-    i--
+        	else if (state."userState${i}".enabled == false){
+    			log.debug "PIN Disabled"
+        		//Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
+    			//keypad.sendInvalidKeycodeResponse()
+    		}
+        }
+        changedMode = 1
+    	i--
     }
-    /*else {
-    	log.debug "Invalid PIN"
+    if (changedMode == 1 && i == 0)
+    {
+    	log.debug "Incorrect PIN"
+        def errorMsg = "Incorrect Code Entered: ${codeEntered}"
+        send(errorMsg)
         //Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
     	keypad.sendInvalidKeycodeResponse()
-    }*/
+    }
+   
 }
 def sendArmCommand()
 {	
