@@ -72,7 +72,7 @@ def setupPage() {
             resetCodeUsage(user)
           }
           if (settings."userCode${user}" && settings."userSlot${user}") {
-            //getConflicts(settings."userSlot${user}")
+            getConflicts(settings."userSlot${user}")
           }
           href(name: "toUserPage${user}", page: "userPage", params: [number: user], required: false, description: userHrefDescription(user), title: userHrefTitle(user), state: userPageState(user) )
         }
@@ -99,16 +99,16 @@ def userPage(params) {
       }
     }
     if (settings."userCode${i}" && settings."userSlot${i}") {
-      //def conflict = getConflicts(settings."userSlot${i}")
-      //if (conflict.has_conflict) {
-      //  section("Conflicts:") {
-      //    theLocks.each { lock->
-      //      if (conflict."lock${lock.id}" && conflict."lock${lock.id}".conflicts != []) {
-      //        paragraph "${lock.displayName} slot ${fancyString(conflict."lock${lock.id}".conflicts)}"
-      //      }
-      //    }
-      //  }
-      //}
+      def conflict = getConflicts(settings."userSlot${i}")
+      if (conflict.has_conflict) {
+        section("Conflicts:") {
+          theLocks.each { lock->
+            if (conflict."lock${lock.id}" && conflict."lock${lock.id}".conflicts != []) {
+              paragraph "${lock.displayName} slot ${fancyString(conflict."lock${lock.id}".conflicts)}"
+            }
+          }
+        }
+      }
     }
     section("Code #${i}") {
       input(name: "userName${i}", type: "text", title: "Name for User", defaultValue: settings."userName${i}")
@@ -1111,7 +1111,7 @@ def performActions(evt) {
           }
       }
       else {
-      	def routineMessage = "Already in ${homePhrases}, skipping execution of routine."
+      	def routineMessage = "Already in ${modeIgnore} mode, skipping execution of ${homePhrases} routine."
         log.debug routineMessage
         send(routineMessage)
       }
