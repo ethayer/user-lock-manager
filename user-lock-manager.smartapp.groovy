@@ -411,11 +411,10 @@ def isUnique(newInt, oldInt) {
     return true
   }
 
-  if (!newInt.isInteger() || !newInt.isInteger()) {
+  if (!newInt.isInteger() || !oldInt.isInteger()) {
     // number is not an integer, can't check.
     return true
   }
-
 
   def newArray = []
   def oldArray = []
