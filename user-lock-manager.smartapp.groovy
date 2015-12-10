@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.9
+ *  User Lock Manager v4.0.10
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -1022,6 +1022,8 @@ def usedUserIndex(usedSlot) {
 }
 
 def codeUsed(evt) {
+  // check the status of the lock, helpful for some schelage locks.
+  runIn(10, doPoll)
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
