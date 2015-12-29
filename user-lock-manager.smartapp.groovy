@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.10
+ *  User Lock Manager v4.1.0
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -149,7 +149,8 @@ def notificationPage() {
   dynamicPage(name: "notificationPage", title: "Notification Settings") {
 
     section {
-      input(name: "phone", type: "phone", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
+      input(name: "phone", type: "text", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
+      paragraph "For multiple SMS recipients, separate phone numbers with a semicolon(;)"
       input(name: "notification", type: "bool", title: "Send A Push Notification", description: "Notification", required: false, submitOnChange: true)
       if (phone != null || notification || sendevent) {
         input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
@@ -1282,7 +1283,15 @@ private sendMessage(msg) {
     sendNotificationEvent(msg)
   }
   if (phone) {
-    sendSms(phone, msg)
+    if ( phone.indexOf(";") > 1){
+      def phones = phone.split(";")
+      for ( def i = 0; i < phones.size(); i++) {
+        sendSms(phones[i], msg)
+      }
+    }
+    else {
+      sendSms(phone, msg)
+    }
   }
 }
 
