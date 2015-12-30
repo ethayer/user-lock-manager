@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.0.7
+ *  User Lock Manager v4.1.0 
  *
  *  Copyright 2015 Erik Thayer
  *  Keypad support added by BLebson
@@ -40,7 +40,7 @@ def rootPage() {
   dynamicPage(name: "rootPage", title: "", install: true, uninstall: true) {
 
     section("Which Locks?") {
-      input "theLocks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true      
+      input "theLocks","capability.lockCodes", title: "Select Locks", required: true, multiple: true, submitOnChange: true
     }
 
     if (theLocks) {
@@ -152,9 +152,9 @@ def notificationPage() {
   dynamicPage(name: "notificationPage", title: "Notification Settings") {
 
     section {
-      input(name: "phone", type: "phone", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
+      input(name: "phone", type: "text", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
+      paragraph "For multiple SMS recipients, separate phone numbers with a semicolon(;)" 
       input(name: "notification", type: "bool", title: "Send A Push Notification", description: "Notification", required: false, submitOnChange: true)
-      input(name: "sendevent", type: "bool", title: "Send An Event Notification", description: "Event Notification", required: false, submitOnChange: true)
       if (phone != null || notification || sendevent) {
         input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
         input(name: "notifyAccessStart", title: "when granting access", type: "bool", required: false)
@@ -337,27 +337,6 @@ def infoPage() {
     }
   }
 }
-
-def keypadPage() {
-	dynamicPage(name: "keypadPage",title: "Keypad Info (optional)") {
-        section("Settings") {
-            // TODO: put inputs here
-            input(name: "keypad", title: "Keypad", type: "capability.lockCodes", multiple: true, required: false)
-        }
-        def routines = location.helloHome?.getPhrases()*.label
-        routines?.sort()
-        section("Routines", hideable: true, hidden: true) {
-            input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: routines, required: false)
-            input(name: "disarmRoutine", title: "Disarm routine", type: "enum", options: routines, required: false)
-            input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: routines, required: false)
-            input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
-            input(name: "armDelay", title: "Arm Delay (in seconds)", type: "number", required: false)
-            input(name: "notifyIncorrectPin", title: "Notify you when incorrect code is used?", type: "bool", required: false)
-        }
-    }
-
-}
-
 def infoRefreshPage() {
   dynamicPage(name:"infoRefreshPage", title:"Lock Info") {
     section() {
@@ -390,6 +369,27 @@ def lockInfoPage(params) {
   }
 }
 
+
+def keypadPage() {
+	dynamicPage(name: "keypadPage",title: "Keypad Info (optional)") {
+        section("Settings") {
+            // TODO: put inputs here
+            input(name: "keypad", title: "Keypad", type: "capability.lockCodes", multiple: true, required: false)
+        }
+        def routines = location.helloHome?.getPhrases()*.label
+        routines?.sort()
+        section("Routines", hideable: true, hidden: true) {
+            input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: routines, required: false)
+            input(name: "disarmRoutine", title: "Disarm routine", type: "enum", options: routines, required: false)
+            input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: routines, required: false)
+            input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: routines, required: false)
+            input(name: "armDelay", title: "Arm Delay (in seconds)", type: "number", required: false)
+            input(name: "notifyIncorrectPin", title: "Notify you when incorrect code is used?", type: "bool", required: false)
+        }
+    }
+
+}
+
 public smartThingsDateFormat() { "yyyy-MM-dd'T'HH:mm:ss.SSSZ" }
 
 public humanReadableStartDate() {
@@ -417,12 +417,11 @@ def getConflicts(i) {
       def ind = 0
       state."lock${lock.id}".codes.each { code ->
         ind++
-        if (currentSlot.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
+        if (currentSlot?.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
           conflict.has_conflict = true
           state."userState${i}".enabled = false
           state."userState${i}".disabledReason = "Code Conflict Detected"
           conflict."lock${lock.id}".conflicts << ind
-          log.debug conflict."lock${lock.id}".conflicts
         }
       }
     }
@@ -438,13 +437,18 @@ def isUnique(newInt, oldInt) {
     return true
   }
 
+  if (!newInt.isInteger() || !oldInt.isInteger()) {
+    // number is not an integer, can't check.
+    return true
+  }
+
   def newArray = []
   def oldArray = []
   def result = true
 
   def i = 0
   // Get a normalized sequence, at the same length
-  newInt.toList().collect {
+  newInt.toString().toList().collect {
     i++
     if (i <= oldInt.length()) {
       newArray << normalizeNumber(it.toInteger())
@@ -452,7 +456,7 @@ def isUnique(newInt, oldInt) {
   }
 
   i = 0
-  oldInt.toList().collect {
+  oldInt.toString().toList().collect {
     i++
     if (i <= newInt.length()) {
       oldArray << normalizeNumber(it.toInteger())
@@ -1046,6 +1050,8 @@ def usedUserIndex(usedSlot) {
 }
 
 def codeUsed(evt) {
+  // check the status of the lock, helpful for some schelage locks.
+  runIn(10, doPoll)
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
@@ -1114,7 +1120,7 @@ def performActions(evt) {
       	def routineMessage = "Already in ${modeIgnore} mode, skipping execution of ${homePhrases} routine."
         log.debug routineMessage
         send(routineMessage)
-      }
+		}
     }
   }
 }
@@ -1277,7 +1283,7 @@ def allCodesDone() {
   def codeComplete = true
   theLocks.each { lock->
     i++
-    if (state."lock${i}".error_loop == true) {
+    if (state."lock${lock.id}".error_loop == true) {
       codeComplete = false
     }
   }
@@ -1307,12 +1313,19 @@ private send(msg) {
 private sendMessage(msg) {
   if (notification) {
     sendPush(msg)
+  } else {
+    sendNotificationEvent(msg)
   }
   if (phone) {
-    sendSms(phone, msg)
-  }
-  if (sendevent) {
-    sendNotificationEvent(msg)
+    if ( phone.indexOf(";") > 1){
+      def phones = phone.split(";")
+      for ( def i = 0; i < phones.size(); i++) {
+        sendSms(phones[i], msg)
+      }
+    }
+    else {
+      sendSms(phone, msg)
+    }
   }
 }
 
