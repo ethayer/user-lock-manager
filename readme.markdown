@@ -17,7 +17,7 @@ Welcome to Lock Manager!
 * Delete codes after they are used*.
 * Optionally Schedule Users so that they only have access during certain times, modes, days of the week, or a calendar range.
 * Decide which notifications to receive in the event that the locks are too chatty.
-* When a code is entered, preform Hello Home Actions.
+* When a code is entered, perform Hello Home Actions.
 
 \* Code is burned when a user enters it at any selected lock. Code will not become active again until code usage for that user is reset.
 
