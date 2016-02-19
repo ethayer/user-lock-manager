@@ -602,7 +602,7 @@ def updateCodes(codeSettings) {
   def get_cmds = []
   codeSettings.each { name, updated ->
     def current = decrypt(state[name])
-    if (name.startsWith("code")) {
+    if (name.startsWith("code") && name[4..7] != "null") {
       def n = name[4..-1].toInteger()
       log.debug "$name was $current, set to $updated"
       if (updated?.size() >= 4 && updated != current) {
