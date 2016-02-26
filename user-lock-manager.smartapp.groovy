@@ -154,6 +154,7 @@ def notificationPage() {
       input(name: "notification", type: "bool", title: "Send A Push Notification", description: "Notification", required: false, submitOnChange: true)
       if (phone != null || notification || sendevent) {
         input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
+        input(name: "notifyLock", title: "on Lock", type: "bool", required: false)
         input(name: "notifyAccessStart", title: "when granting access", type: "bool", required: false)
         input(name: "notifyAccessEnd", title: "when revoking access", type: "bool", required: false)
       }
@@ -165,6 +166,7 @@ def notificationPage() {
     }
   }
 }
+
 def schedulingPage() {
   dynamicPage(name: "schedulingPage", title: "Rules For Access Scheduling") {
     if (!days) {
@@ -253,6 +255,7 @@ def resetCodeUsagePage(params) {
     }
   }
 }
+
 def resetAllCodeUsagePage() {
   // do resetAll
   resetAllCodeUsage()
@@ -266,6 +269,7 @@ def resetAllCodeUsagePage() {
     }
   }
 }
+
 def reEnableUserPage(params) {
   // do reset
   def i = getUser(params)
@@ -333,6 +337,7 @@ def infoPage() {
     }
   }
 }
+
 def infoRefreshPage() {
   dynamicPage(name:"infoRefreshPage", title:"Lock Info") {
     section() {
@@ -499,6 +504,9 @@ def notificationPageDescription() {
     if (settings.notifyAccess) {
         parts << "on entry"
     }
+    if (settings.notifyLock) {
+        parts << "on lock"
+    }
     if (settings.notifyAccessStart) {
         parts << "when granting access"
     }
@@ -545,6 +553,7 @@ def userHrefTitle(i) {
   }
   return title
 }
+
 def userHrefDescription(i) {
   def uc = settings."userCode${i}"
   def us = settings."userSlot${i}"
@@ -702,6 +711,7 @@ def resetAllCodeUsage() {
   }
   log.debug "reseting all code usage"
 }
+
 def resetCodeUsage(i) {
   if(state."userState${i}" == null) {
     state."userState${i}" = [:]
@@ -709,6 +719,7 @@ def resetCodeUsage(i) {
   }
   state."userState${i}".usage = 0
 }
+
 def enableUser(i) {
   state."userState${i}".enabled = true
 }
@@ -720,6 +731,7 @@ def initalizeLockData() {
     }
   }
 }
+
 def lockErrorLoopReset() {
   state.error_loop_count = 0
   theLocks.each { lock->
@@ -1023,45 +1035,60 @@ def usedUserIndex(usedSlot) {
 }
 
 def codeUsed(evt) {
-  // check the status of the lock, helpful for some schelage locks.
+  // check the status of the lock, helpful for some schlage locks.
   runIn(10, doPoll)
-  if(evt.value == "unlocked" && evt.data) {
-    def codeData = new JsonSlurper().parseText(evt.data)
-    if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
-      def usedIndex = usedUserIndex(codeData.usedCode).toInteger()
-      def unlockUserName = settings."userName${usedIndex}"
-      def message = "${evt.displayName} was unlocked by ${unlockUserName}"
-      // increment usage
-      state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
-      if(settings."userHomePhrases${usedIndex}") {
-        // Specific User Hello Home
-        if (settings."userNoRunPresence${usedIndex}" && settings."userDoRunPresence${usedIndex}" == null) {
-          if (!anyoneHome(settings."userNoRunPresence${usedIndex}")) {
+  log.debug("codeUsed evt.value: " + evt.value + ". evt.data: " + evt.data)
+  def message = null
+  
+  if(evt.value == "unlocked") {
+    if (evt.data) {
+      def codeData = new JsonSlurper().parseText(evt.data)
+      if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
+        def usedIndex = usedUserIndex(codeData.usedCode).toInteger()
+        def unlockUserName = settings."userName${usedIndex}"
+        message = "${evt.displayName} was unlocked by ${unlockUserName}"
+        // increment usage
+        state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
+        if(settings."userHomePhrases${usedIndex}") {
+          // Specific User Hello Home
+          if (settings."userNoRunPresence${usedIndex}" && settings."userDoRunPresence${usedIndex}" == null) {
+            if (!anyoneHome(settings."userNoRunPresence${usedIndex}")) {
+              location.helloHome.execute(settings."userHomePhrases${usedIndex}")
+            }
+          } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}" == null) {
+            if (anyoneHome(settings."userDoRunPresence${usedIndex}")) {
+              location.helloHome.execute(settings."userHomePhrases${usedIndex}")
+            }
+          } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}") {
+            if (anyoneHome(settings."userDoRunPresence${usedIndex}") && !anyoneHome(settings."userNoRunPresence${usedIndex}")) {
+              location.helloHome.execute(settings."userHomePhrases${usedIndex}")
+            }
+          } else {
             location.helloHome.execute(settings."userHomePhrases${usedIndex}")
           }
-        } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}" == null) {
-          if (anyoneHome(settings."userDoRunPresence${usedIndex}")) {
-            location.helloHome.execute(settings."userHomePhrases${usedIndex}")
-          }
-        } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}") {
-          if (anyoneHome(settings."userDoRunPresence${usedIndex}") && !anyoneHome(settings."userNoRunPresence${usedIndex}")) {
-            location.helloHome.execute(settings."userHomePhrases${usedIndex}")
-          }
-        } else {
-          location.helloHome.execute(settings."userHomePhrases${usedIndex}")
+        }
+        if(settings."burnCode${usedIndex}") {
+          theLocks.deleteCode(codeData.usedCode)
+          runIn(60*2, doPoll)
+          message += ".  Now burning code."
+        }
+        //Don't send notification if muted
+        if(settings."dontNotify${usedIndex}" == true) {
+          message = null
         }
       }
-      if(settings."burnCode${usedIndex}") {
-        theLocks.deleteCode(codeData.usedCode)
-        runIn(60*2, doPoll)
-        message += ".  Now burning code."
-      }
-      //Don't send notification if muted
-      if(settings."dontNotify${usedIndex}" != true) {
-        send(message)
-      }
+    } else {
+      send("${evt.displayName} was unlocked by unknown");
     }
+  } else if(evt.value == "locked") {
+    message = "${evt.displayName} has been locked"
   }
+  
+  if (message) {
+    log.debug("Sending message: " + message)
+    send(message)
+  }
+  
   if (homePhrases) {
     performActions(evt)
   }
@@ -1090,7 +1117,6 @@ def performActions(evt) {
     }
   }
 }
-
 
 def revokeDisabledUsers() {
   def array = []
@@ -1129,6 +1155,7 @@ def grantAccess() {
     runIn(60*2, doPoll)
   }
 }
+
 def revokeAccess() {
   def array = []
   enabledUsersArray().each { user->
@@ -1276,6 +1303,7 @@ private send(msg) {
     sendMessage(msg)
   }
 }
+
 private sendMessage(msg) {
   if (notification) {
     sendPush(msg)
