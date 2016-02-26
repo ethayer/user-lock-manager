@@ -1039,7 +1039,7 @@ def codeUsed(evt) {
   runIn(10, doPoll)
   log.debug("codeUsed evt.value: " + evt.value + ". evt.data: " + evt.data)
   def message = null
-  
+
   if(evt.value == "unlocked") {
     if (evt.data) {
       def codeData = new JsonSlurper().parseText(evt.data)
@@ -1080,15 +1080,15 @@ def codeUsed(evt) {
     } else {
       send("${evt.displayName} was unlocked by unknown");
     }
-  } else if(evt.value == "locked") {
+  } else if(evt.value == "locked" && settings.notifyLock) {
     message = "${evt.displayName} has been locked"
   }
-  
+
   if (message) {
     log.debug("Sending message: " + message)
     send(message)
   }
-  
+
   if (homePhrases) {
     performActions(evt)
   }
