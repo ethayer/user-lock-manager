@@ -1040,45 +1040,41 @@ def codeUsed(evt) {
   log.debug("codeUsed evt.value: " + evt.value + ". evt.data: " + evt.data)
   def message = null
 
-  if(evt.value == "unlocked") {
-    if (evt.data) {
-      def codeData = new JsonSlurper().parseText(evt.data)
-      if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
-        def usedIndex = usedUserIndex(codeData.usedCode).toInteger()
-        def unlockUserName = settings."userName${usedIndex}"
-        message = "${evt.displayName} was unlocked by ${unlockUserName}"
-        // increment usage
-        state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
-        if(settings."userHomePhrases${usedIndex}") {
-          // Specific User Hello Home
-          if (settings."userNoRunPresence${usedIndex}" && settings."userDoRunPresence${usedIndex}" == null) {
-            if (!anyoneHome(settings."userNoRunPresence${usedIndex}")) {
-              location.helloHome.execute(settings."userHomePhrases${usedIndex}")
-            }
-          } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}" == null) {
-            if (anyoneHome(settings."userDoRunPresence${usedIndex}")) {
-              location.helloHome.execute(settings."userHomePhrases${usedIndex}")
-            }
-          } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}") {
-            if (anyoneHome(settings."userDoRunPresence${usedIndex}") && !anyoneHome(settings."userNoRunPresence${usedIndex}")) {
-              location.helloHome.execute(settings."userHomePhrases${usedIndex}")
-            }
-          } else {
+  if(evt.value == "unlocked" && evt.data) {
+    def codeData = new JsonSlurper().parseText(evt.data)
+    if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
+      def usedIndex = usedUserIndex(codeData.usedCode).toInteger()
+      def unlockUserName = settings."userName${usedIndex}"
+      message = "${evt.displayName} was unlocked by ${unlockUserName}"
+      // increment usage
+      state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
+      if(settings."userHomePhrases${usedIndex}") {
+        // Specific User Hello Home
+        if (settings."userNoRunPresence${usedIndex}" && settings."userDoRunPresence${usedIndex}" == null) {
+          if (!anyoneHome(settings."userNoRunPresence${usedIndex}")) {
             location.helloHome.execute(settings."userHomePhrases${usedIndex}")
           }
-        }
-        if(settings."burnCode${usedIndex}") {
-          theLocks.deleteCode(codeData.usedCode)
-          runIn(60*2, doPoll)
-          message += ".  Now burning code."
-        }
-        //Don't send notification if muted
-        if(settings."dontNotify${usedIndex}" == true) {
-          message = null
+        } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}" == null) {
+          if (anyoneHome(settings."userDoRunPresence${usedIndex}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedIndex}")
+          }
+        } else if (settings."userDoRunPresence${usedIndex}" && settings."userNoRunPresence${usedIndex}") {
+          if (anyoneHome(settings."userDoRunPresence${usedIndex}") && !anyoneHome(settings."userNoRunPresence${usedIndex}")) {
+            location.helloHome.execute(settings."userHomePhrases${usedIndex}")
+          }
+        } else {
+          location.helloHome.execute(settings."userHomePhrases${usedIndex}")
         }
       }
-    } else {
-      send("${evt.displayName} was unlocked by unknown");
+      if(settings."burnCode${usedIndex}") {
+        theLocks.deleteCode(codeData.usedCode)
+        runIn(60*2, doPoll)
+        message += ".  Now burning code."
+      }
+      //Don't send notification if muted
+      if(settings."dontNotify${usedIndex}" == true) {
+        message = null
+      }
     }
   } else if(evt.value == "locked" && settings.notifyLock) {
     message = "${evt.displayName} has been locked"
