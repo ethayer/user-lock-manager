@@ -1,5 +1,5 @@
 /**
- *  User Lock Manager v4.1.2
+ *  User Lock Manager v4.1.3
  *
  *  Copyright 2015 Erik Thayer
  *
@@ -122,12 +122,12 @@ def userPage(params) {
       input(name: "dontNotify${i}", title: "Mute entry notification?", type: "bool", required: false, defaultValue: settings."dontNotify${i}")
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
       input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
-      def phrases = location.helloHome?.getPhrases()*.label
-      if (phrases) {
-        phrases.sort()
-        input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
-        input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
-        input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
+      def hhPhrases = location.getHelloHome()?.getPhrases()*.label
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: hhPhrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
+        input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}" || false
+        input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}" || false
       }
     }
     section {
@@ -198,15 +198,15 @@ def calendarPage() {
       paragraph "This page is for advanced users only. You must enter each field carefully."
       paragraph "Calendar use does not support daily grant/deny OR Modes.  You cannot both have a date here, and allow access only on certain days/modes."
     }
-    def phrases = location.helloHome?.getPhrases()*.label
+    def hhPhrases = location.getHelloHome()?.getPhrases()*.label
     section("Start Date") {
       input name: "startDay", type: "number", title: "Day", required: false
       input name: "startMonth", type: "number", title: "Month", required: false
       input name: "startYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "startTime", type: "time", title: "Start Time", description: null, required: false
-      if (phrases) {
-        phrases.sort()
-        input name: "calStartPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "calStartPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: hhPhrases, refreshAfterSelection: true
       }
     }
     section("End Date") {
@@ -214,9 +214,9 @@ def calendarPage() {
       input name: "endMonth", type: "number", title: "Month", required: false
       input name: "endYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "endTime", type: "time", title: "End Time", description: null, required: false
-      if (phrases) {
-        phrases.sort()
-        input name: "calEndPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "calEndPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: hhPhrases, refreshAfterSelection: true
       }
     }
   }
@@ -225,10 +225,10 @@ def calendarPage() {
 def onUnlockPage() {
   dynamicPage(name:"onUnlockPage", title:"Global Actions (Any Code)") {
     section("Actions") {
-      def phrases = location.helloHome?.getPhrases()*.label
-      if (phrases) {
-        phrases.sort()
-        input name: "homePhrases", type: "enum", title: "Home Mode Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true, submitOnChange: true
+      def hhPhrases = location.getHelloHome()?.getPhrases()*.label
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "homePhrases", type: "enum", title: "Home Mode Phrase", multiple: true, required: false, options: hhPhrases, refreshAfterSelection: true, submitOnChange: true
         if (homePhrases) {
           input "noRunPresence", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false
           input "doRunPresence", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false
