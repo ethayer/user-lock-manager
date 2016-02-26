@@ -1,14 +1,14 @@
 Welcome to Lock Manager!
 =========================
 
-###Now with custom device type!
+### Now with custom device type!
 * Use the attached device type zwave-lock.groovy for added functionality.
 * Minimal changes to SmartThings code.
 * More reliable code set/delete.
 * Codes will be reconciled on each poll() event.
 * App will function without custom device type, but not as well.
 
-###Features:
+### Features:
 * Assign Codes to Multiple Users.
 * Manage Multiple Locks.
 * See what codes are active.
@@ -21,16 +21,47 @@ Welcome to Lock Manager!
 
 \* Code is burned when a user enters it at any selected lock. Code will not become active again until code usage for that user is reset.
 
-##How to use:
-1. Install the app via the SmartThings developer IDE.  Copy all code from the .groovy file on this repository.
-  Having trouble with this step?  Use this [tutorial video](https://www.youtube.com/watch?v=D6rG4mk164M&feature=youtu.be) by user Scott in Pollock on youtube.
-1. Navigate to My Apps on your smart device.  Follow the prompts on your new app.
-1. When complete, either press the app icon to activate the code, or allow the schedule to run.  Pressing the app button outside of the set schedule will still allow the user access!
+# How to use:
 
-##NOTE:
-Custom device types are not recommended.  Please use only the included device type or the default device type provided by SmartThings.
+## How to...Install App
 
-##Confirmed Locks:
+1. *Go to* **[Apps](https://graph.api.smartthings.com/ide/apps)** in IDE
+1. *Click* "New App +"
+1. *Click* "From Code"
+1. *Copy* from **[github](https://raw.githubusercontent.com/ethayer/user-lock-manager/master/user-lock-manager.smartapp.groovy)**
+1. *Paste* into textarea on SmartThings
+1. *Click* Publish > For Me
+
+## How to...Add Device Handler:
+1. Navigate to: https://graph.api.smartthings.com/ide/devices
+1. Click **'New SmartDevice'** in the upper right.
+1. Click **'From Code'**
+1. Paste the code from the link (github) above into the text area:
+  * if you have a *schlage* lock, use @garyd9's handler: [here](https://raw.githubusercontent.com/garyd9/SmartThingsPublic/master/devicetypes/garyd9/zwave-schlage-touchscreen-lock.src/zwave-schlage-touchscreen-lock.groovy)
+  * all other locks: [here](https://raw.githubusercontent.com/ethayer/user-lock-manager/master/zwave-lock.groovy)
+1. Click **'Create'**
+1. Click **'Save'**
+1. Click **'Publish'** > **'For Me'**
+
+## Change lock device handler to new code:
+1. Navigate to **'My Devices'**:  https://graph.api.smartthings.com/device/list
+1. Locate your lock and click on the **name** in the _first column_
+1. Click **'Edit'** on the bottom of the page view
+1. In the **'Type'** drop-down scroll to the bottom and select **'Z-Wave Lock Reporting'**
+1. Click **'Update'** to save changes
+
+#### Then continued on your smart device...
+
+1. *Tap* Marketplace
+1. *Tap* SmartApps
+1. Scroll down to 'My Apps' / *Tap*
+1.  *Tap* User Lock Manager
+1. Fill out app options.
+
+## NOTE:
+Please use only the included device type or the default device type provided by SmartThings, or the schelage device type created by @garyd9 here:
+
+## Confirmed Locks:
 * Kwikset 910, 914
 * Yale Security YRL-220-ZW-619
 * Others?
