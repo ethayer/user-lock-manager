@@ -711,8 +711,10 @@ private initialize() {
   subscribe(theLocks, "codeReport", codereturn)
   subscribe(theLocks, "lock", codeUsed)
   subscribe(theLocks, "reportAllCodes", pollCodeReport, [filterEvents:false])
-  subscribe(location,"alarmSystemStatus",alarmStatusHandler)
-  subscribe(keypad,"codeEntered",codeEntryHandler)
+  if (keypad) {
+  	subscribe(location,"alarmSystemStatus",alarmStatusHandler)
+  	subscribe(keypad,"codeEntered",codeEntryHandler)
+  }
 
   revokeDisabledUsers()
   reconcileCodes()
