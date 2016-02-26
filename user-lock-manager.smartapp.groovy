@@ -1027,7 +1027,7 @@ def codereturn(evt) {
 
 def usedUserIndex(usedSlot) {
   for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
+    if (settings."userSlot${i}" && settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
       return i
     }
   }
