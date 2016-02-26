@@ -438,7 +438,7 @@ def isUnique(newInt, oldInt) {
   i = 0
   oldInt.toString().toList().collect {
     i++
-    if (i <= newInt.length()) {
+    if (i <= oldInt.length()) {
       oldArray << normalizeNumber(it.toInteger())
     }
   }
