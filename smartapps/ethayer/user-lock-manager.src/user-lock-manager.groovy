@@ -1,5 +1,4 @@
 /**
-<<<<<<< HEAD:smartapps/ethayer/user-lock-manager.src/user-lock-manager.groovy
  *  User Lock Manager v4.1.5
  *
  *  Copyright 2015 Erik Thayer
