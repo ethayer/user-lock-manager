@@ -74,7 +74,7 @@ def setupPage() {
           if (settings."userCode${user}" && settings."userSlot${user}") {
             getConflicts(settings."userSlot${user}")
           }
-          href(name: "toUserPage${user}", page: "userPage", params: [number: user], required: false, description: userHrefDescription(user), title: userHrefTitle(user), state: userPageState(user) )
+          href(name: "toUserPage${user}", page: "userPage", params: [number: user], required: false, title: userHrefTitle(user), state: userPageState(user) )
         }
       }
       section {
@@ -118,7 +118,7 @@ def userPage(params) {
           title = "Code (Must be ${lock.latestValue('pinLength')} digits)"
         }
       }
-      input(name: "userCode${i}", type: "text", title: title, required: false, defaultValue: settings."userCode${i}", refreshAfterSelection: true)
+      input(name: "userCode${i}", type: "text", title: title, required: true, refreshAfterSelection: true)
       input(name: "userSlot${i}", type: "number", title: "Slot (1 through 30)", defaultValue: preSlectedCode(i))
     }
     section {
