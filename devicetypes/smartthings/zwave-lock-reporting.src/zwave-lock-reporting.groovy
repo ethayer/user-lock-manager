@@ -539,13 +539,14 @@ def poll() {
 	}
 	if (cmds) {
 		log.debug "poll is sending ${cmds.inspect()}"
-    reportAllCodes(state)
 		cmds
 	} else {
 		// workaround to keep polling from stopping due to lack of activity
 		sendEvent(descriptionText: "skipping poll", isStateChange: true, displayed: false)
 		null
 	}
+
+    reportAllCodes(state)
 }
 
 def requestCode(codeNumber) {
