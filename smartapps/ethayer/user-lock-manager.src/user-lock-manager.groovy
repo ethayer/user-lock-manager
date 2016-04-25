@@ -1,23 +1,24 @@
 /**
- *  User Lock Manager v4.0.7
+ *  User Lock Manager v4.1.5
  *
  *  Copyright 2015 Erik Thayer
+ *  Keypad support added by BLebson
  *
  */
 definition(
-    name: "User Lock Manager",
-    namespace: "ethayer",
-    author: "Erik Thayer",
-    description: "This app allows you to change, delete, and schedule user access.",
-    category: "Safety & Security",
-    iconUrl: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanager.png",
-    iconX2Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx2.png",
-    iconX3Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx3.png")
+  name: "User Lock Manager",
+  namespace: "ethayer",
+  author: "Erik Thayer",
+  description: "This app allows you to change, delete, and schedule user access.",
+  category: "Safety & Security",
+  iconUrl: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanager.png",
+  iconX2Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx2.png",
+  iconX3Url: "https://dl.dropboxusercontent.com/u/54190708/LockManager/lockmanagerx3.png")
 
- import groovy.json.JsonSlurper
- import groovy.json.JsonBuilder
+  import groovy.json.JsonSlurper
+  import groovy.json.JsonBuilder
 
- preferences {
+preferences {
   page(name: "rootPage")
   page(name: "setupPage")
   page(name: "userPage")
@@ -29,6 +30,7 @@ definition(
   page(name: "resetCodeUsagePage")
   page(name: "reEnableUserPage")
   page(name: "infoPage")
+  page(name: "keypadPage")
   page(name: "infoRefreshPage")
   page(name: "lockInfoPage")
 }
@@ -48,6 +50,7 @@ def rootPage() {
         input name: "maxUsers", title: "Number of users", type: "number", multiple: false, refreshAfterSelection: true, submitOnChange: true
         href(name: "toSetupPage", title: "User Settings", page: "setupPage", description: setupPageDescription(), state: setupPageDescription() ? "complete" : "")
         href(name: "toInfoPage", page: "infoPage", title: "Lock Info")
+        href(name: "toKeypadPage", page: "keypadPage", title: "Keypad Info (optional)")
         href(name: "toNotificationPage", page: "notificationPage", title: "Notification Settings", description: notificationPageDescription(), state: notificationPageDescription() ? "complete" : "")
         href(name: "toSchedulingPage", page: "schedulingPage", title: "Schedule (optional)", description: schedulingHrefDescription(), state: schedulingHrefDescription() ? "complete" : "")
         href(name: "toOnUnlockPage", page: "onUnlockPage", title: "Global Hello Home")
@@ -122,12 +125,12 @@ def userPage(params) {
       input(name: "dontNotify${i}", title: "Mute entry notification?", type: "bool", required: false, defaultValue: settings."dontNotify${i}")
       input(name: "burnCode${i}", title: "Burn after use?", type: "bool", required: false, defaultValue: settings."burnCode${i}")
       input(name: "userEnabled${i}", title: "Enabled?", type: "bool", required: false, defaultValue: settings."userEnabled${i}")
-      def phrases = location.helloHome?.getPhrases()*.label
-      if (phrases) {
-        phrases.sort()
-        input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
-        input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}"
-        input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}"
+      def hhPhrases = location.getHelloHome()?.getPhrases()*.label
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "userHomePhrases${i}", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: hhPhrases, defaultValue: settings."userHomePhrases${i}", refreshAfterSelection: true
+        input "userNoRunPresence${i}", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false, defaultValue: settings."userNoRunPresence${i}" || false
+        input "userDoRunPresence${i}", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false, defaultValue: settings."userDoRunPresence${i}" || false
       }
     }
     section {
@@ -149,11 +152,12 @@ def notificationPage() {
   dynamicPage(name: "notificationPage", title: "Notification Settings") {
 
     section {
-      input(name: "phone", type: "phone", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
+      input(name: "phone", type: "text", title: "Text This Number", description: "Phone number", required: false, submitOnChange: true)
+      paragraph "For multiple SMS recipients, separate phone numbers with a semicolon(;)"
       input(name: "notification", type: "bool", title: "Send A Push Notification", description: "Notification", required: false, submitOnChange: true)
-      input(name: "sendevent", type: "bool", title: "Send An Event Notification", description: "Event Notification", required: false, submitOnChange: true)
       if (phone != null || notification || sendevent) {
         input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
+        input(name: "notifyLock", title: "on Lock", type: "bool", required: false)
         input(name: "notifyAccessStart", title: "when granting access", type: "bool", required: false)
         input(name: "notifyAccessEnd", title: "when revoking access", type: "bool", required: false)
       }
@@ -165,6 +169,7 @@ def notificationPage() {
     }
   }
 }
+
 def schedulingPage() {
   dynamicPage(name: "schedulingPage", title: "Rules For Access Scheduling") {
     if (!days) {
@@ -198,15 +203,15 @@ def calendarPage() {
       paragraph "This page is for advanced users only. You must enter each field carefully."
       paragraph "Calendar use does not support daily grant/deny OR Modes.  You cannot both have a date here, and allow access only on certain days/modes."
     }
-    def phrases = location.helloHome?.getPhrases()*.label
+    def hhPhrases = location.getHelloHome()?.getPhrases()*.label
     section("Start Date") {
       input name: "startDay", type: "number", title: "Day", required: false
       input name: "startMonth", type: "number", title: "Month", required: false
       input name: "startYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "startTime", type: "time", title: "Start Time", description: null, required: false
-      if (phrases) {
-        phrases.sort()
-        input name: "calStartPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "calStartPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: hhPhrases, refreshAfterSelection: true
       }
     }
     section("End Date") {
@@ -214,9 +219,9 @@ def calendarPage() {
       input name: "endMonth", type: "number", title: "Month", required: false
       input name: "endYear", type: "number", description: "Format(yyyy)", title: "Year", required: false
       input name: "endTime", type: "time", title: "End Time", description: null, required: false
-      if (phrases) {
-        phrases.sort()
-        input name: "calEndPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "calEndPhrase", type: "enum", title: "Hello Home Phrase", multiple: true,required: false, options: hhPhrases, refreshAfterSelection: true
       }
     }
   }
@@ -225,14 +230,15 @@ def calendarPage() {
 def onUnlockPage() {
   dynamicPage(name:"onUnlockPage", title:"Global Actions (Any Code)") {
     section("Actions") {
-      def phrases = location.helloHome?.getPhrases()*.label
-      if (phrases) {
-        phrases.sort()
-        input name: "homePhrases", type: "enum", title: "Home Mode Phrase", multiple: true,required: false, options: phrases, refreshAfterSelection: true, submitOnChange: true
+      def hhPhrases = location.getHelloHome()?.getPhrases()*.label
+      if (hhPhrases) {
+        hhPhrases.sort()
+        input name: "homePhrases", type: "enum", title: "Home Mode Phrase", multiple: true, required: false, options: hhPhrases, refreshAfterSelection: true, submitOnChange: true
         if (homePhrases) {
           input "noRunPresence", "capability.presenceSensor", title: "Don't run Actions if any of these are present:", multiple: true, required: false
           input "doRunPresence", "capability.presenceSensor", title: "Run Actions only if any of these are present:", multiple: true, required: false
           input name: "manualUnlock", title: "Initiate phrase on manual unlock also?", type: "bool", defaultValue: false, refreshAfterSelection: true
+          input(name: "modeIgnore", title: "Do not run Routine when in this mode", type: "mode", required: false, mutliple: false)
         }
       }
     }
@@ -253,6 +259,7 @@ def resetCodeUsagePage(params) {
     }
   }
 }
+
 def resetAllCodeUsagePage() {
   // do resetAll
   resetAllCodeUsage()
@@ -266,6 +273,7 @@ def resetAllCodeUsagePage() {
     }
   }
 }
+
 def reEnableUserPage(params) {
   // do reset
   def i = getUser(params)
@@ -333,6 +341,7 @@ def infoPage() {
     }
   }
 }
+
 def infoRefreshPage() {
   dynamicPage(name:"infoRefreshPage", title:"Lock Info") {
     section() {
@@ -365,6 +374,26 @@ def lockInfoPage(params) {
   }
 }
 
+
+def keypadPage() {
+  dynamicPage(name: "keypadPage",title: "Keypad Settings (optional)") {
+    section("Settings") {
+      // TODO: put inputs here
+      input(name: "keypad", title: "Keypad", type: "capability.lockCodes", multiple: true, required: false)
+    }
+    def hhPhrases = location.getHelloHome()?.getPhrases()*.label
+    hhPhrases?.sort()
+    section("Routines", hideable: true, hidden: true) {
+      input(name: "armRoutine", title: "Arm/Away routine", type: "enum", options: hhPhrases, required: false)
+      input(name: "disarmRoutine", title: "Disarm routine", type: "enum", options: hhPhrases, required: false)
+      input(name: "stayRoutine", title: "Arm/Stay routine", type: "enum", options: hhPhrases, required: false)
+      input(name: "nightRoutine", title: "Arm/Night routine", type: "enum", options: hhPhrases, required: false)
+      input(name: "armDelay", title: "Arm Delay (in seconds)", type: "number", required: false)
+      input(name: "notifyIncorrectPin", title: "Notify you when incorrect code is used?", type: "bool", required: false)
+    }
+  }
+}
+
 public smartThingsDateFormat() { "yyyy-MM-dd'T'HH:mm:ss.SSSZ" }
 
 public humanReadableStartDate() {
@@ -392,12 +421,11 @@ def getConflicts(i) {
       def ind = 0
       state."lock${lock.id}".codes.each { code ->
         ind++
-        if (currentSlot.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
+        if (currentSlot?.toInteger() != ind.toInteger() && !isUnique(currentCode, state."lock${lock.id}".codes."slot${ind}")) {
           conflict.has_conflict = true
           state."userState${i}".enabled = false
           state."userState${i}".disabledReason = "Code Conflict Detected"
           conflict."lock${lock.id}".conflicts << ind
-          log.debug conflict."lock${lock.id}".conflicts
         }
       }
     }
@@ -413,13 +441,18 @@ def isUnique(newInt, oldInt) {
     return true
   }
 
+  if (!newInt.isInteger() || !oldInt.isInteger()) {
+    // number is not an integer, can't check.
+    return true
+  }
+
   def newArray = []
   def oldArray = []
   def result = true
 
   def i = 0
   // Get a normalized sequence, at the same length
-  newInt.toList().collect {
+  newInt.toString().toList().collect {
     i++
     if (i <= oldInt.length()) {
       newArray << normalizeNumber(it.toInteger())
@@ -427,9 +460,9 @@ def isUnique(newInt, oldInt) {
   }
 
   i = 0
-  oldInt.toList().collect {
+  oldInt.toString().toList().collect {
     i++
-    if (i <= newInt.length()) {
+    if (i <= oldInt.length()) {
       oldArray << normalizeNumber(it.toInteger())
     }
   }
@@ -478,40 +511,43 @@ def setupPageDescription(){
 }
 
 def notificationPageDescription() {
-    def parts = []
-    def msg = ""
-    if (settings.phone) {
-        parts << "SMS to ${phone}"
-    }
-    if (settings.sendevent) {
-        parts << "Event Notification"
-    }
-    if (settings.notification) {
-        parts << "Push Notification"
-    }
-    msg += fancyString(parts)
-    parts = []
+  def parts = []
+  def msg = ""
+  if (settings.phone) {
+    parts << "SMS to ${phone}"
+  }
+  if (settings.sendevent) {
+    parts << "Event Notification"
+  }
+  if (settings.notification) {
+    parts << "Push Notification"
+  }
+  msg += fancyString(parts)
+  parts = []
 
-    if (settings.notifyAccess) {
-        parts << "on entry"
-    }
-    if (settings.notifyAccessStart) {
-        parts << "when granting access"
-    }
-    if (settings.notifyAccessEnd) {
-        parts << "when revoking access"
-    }
-    if (settings.notificationStartTime) {
-        parts << "starting at ${settings.notificationStartTime}"
-    }
-    if (settings.notificationEndTime) {
-        parts << "ending at ${settings.notificationEndTime}"
-    }
-    if (parts.size()) {
-        msg += ": "
-        msg += fancyString(parts)
-    }
-    return msg
+  if (settings.notifyAccess) {
+    parts << "on entry"
+  }
+  if (settings.notifyLock) {
+    parts << "on lock"
+  }
+  if (settings.notifyAccessStart) {
+    parts << "when granting access"
+  }
+  if (settings.notifyAccessEnd) {
+    parts << "when revoking access"
+  }
+  if (settings.notificationStartTime) {
+    parts << "starting at ${settings.notificationStartTime}"
+  }
+  if (settings.notificationEndTime) {
+    parts << "ending at ${settings.notificationEndTime}"
+  }
+  if (parts.size()) {
+    msg += ": "
+    msg += fancyString(parts)
+  }
+  return msg
 }
 
 def calendarHrefDescription() {
@@ -541,6 +577,7 @@ def userHrefTitle(i) {
   }
   return title
 }
+
 def userHrefDescription(i) {
   def uc = settings."userCode${i}"
   def us = settings."userSlot${i}"
@@ -643,7 +680,6 @@ def schedulingHrefDescription() {
     }
     return descriptionParts.join(" ")
   }
-
 }
 
 def installed() {
@@ -682,6 +718,10 @@ private initialize() {
   subscribe(theLocks, "codeReport", codereturn)
   subscribe(theLocks, "lock", codeUsed)
   subscribe(theLocks, "reportAllCodes", pollCodeReport, [filterEvents:false])
+  if (keypad) {
+    subscribe(location,"alarmSystemStatus",alarmStatusHandler)
+    subscribe(keypad,"codeEntered",codeEntryHandler)
+  }
 
   revokeDisabledUsers()
   reconcileCodes()
@@ -698,6 +738,7 @@ def resetAllCodeUsage() {
   }
   log.debug "reseting all code usage"
 }
+
 def resetCodeUsage(i) {
   if(state."userState${i}" == null) {
     state."userState${i}" = [:]
@@ -705,6 +746,7 @@ def resetCodeUsage(i) {
   }
   state."userState${i}".usage = 0
 }
+
 def enableUser(i) {
   state."userState${i}".enabled = true
 }
@@ -716,6 +758,7 @@ def initalizeLockData() {
     }
   }
 }
+
 def lockErrorLoopReset() {
   state.error_loop_count = 0
   theLocks.each { lock->
@@ -1011,7 +1054,7 @@ def codereturn(evt) {
 
 def usedUserIndex(usedSlot) {
   for (int i = 1; i <= settings.maxUsers; i++) {
-    if (settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
+    if (settings."userSlot${i}" && settings."userSlot${i}".toInteger() == usedSlot.toInteger()) {
       return i
     }
   }
@@ -1019,12 +1062,17 @@ def usedUserIndex(usedSlot) {
 }
 
 def codeUsed(evt) {
+  // check the status of the lock, helpful for some schlage locks.
+  runIn(10, doPoll)
+  log.debug("codeUsed evt.value: " + evt.value + ". evt.data: " + evt.data)
+  def message = null
+
   if(evt.value == "unlocked" && evt.data) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(codeData.usedCode && codeData.usedCode.isNumber() && userSlotArray().contains(codeData.usedCode.toInteger())) {
       def usedIndex = usedUserIndex(codeData.usedCode).toInteger()
       def unlockUserName = settings."userName${usedIndex}"
-      def message = "${evt.displayName} was unlocked by ${unlockUserName}"
+      message = "${evt.displayName} was unlocked by ${unlockUserName}"
       // increment usage
       state."userState${usedIndex}".usage = state."userState${usedIndex}".usage + 1
       if(settings."userHomePhrases${usedIndex}") {
@@ -1050,12 +1098,20 @@ def codeUsed(evt) {
         runIn(60*2, doPoll)
         message += ".  Now burning code."
       }
-      //Only send notificaton if set to burn code or not muted
-      if(settings."burnCode${usedIndex}" || settings."dontNotify${usedIndex}" != true) {
-        send(message)
+      //Don't send notification if muted
+      if(settings."dontNotify${usedIndex}" == true) {
+        message = null
       }
     }
+  } else if(evt.value == "locked" && settings.notifyLock) {
+    message = "${evt.displayName} has been locked"
   }
+
+  if (message) {
+    log.debug("Sending message: " + message)
+    send(message)
+  }
+
   if (homePhrases) {
     performActions(evt)
   }
@@ -1066,25 +1122,30 @@ def performActions(evt) {
     def codeData = new JsonSlurper().parseText(evt.data)
     if(enabledUsersArray().contains(codeData.usedCode) || isManualUnlock(codeData)) {
       // Global Hello Home
-      if (noRunPresence && doRunPresence == null) {
-        if (!anyoneHome(noRunPresence)) {
-          location.helloHome.execute(homePhrases)
-        }
-      } else if (doRunPresence && noRunPresence == null) {
-        if (anyoneHome(doRunPresence)) {
-          location.helloHome.execute(homePhrases)
-        }
-      } else if (doRunPresence && noRunPresence) {
-        if (anyoneHome(doRunPresence) && !anyoneHome(noRunPresence)) {
-          location.helloHome.execute(homePhrases)
+      if(location.currentMode != modeIgnore) {
+        if (noRunPresence && doRunPresence == null) {
+          if (!anyoneHome(noRunPresence)) {
+            location.helloHome.execute(homePhrases)
+          }
+        } else if (doRunPresence && noRunPresence == null) {
+          if (anyoneHome(doRunPresence)) {
+            location.helloHome.execute(homePhrases)
+          }
+        } else if (doRunPresence && noRunPresence) {
+          if (anyoneHome(doRunPresence) && !anyoneHome(noRunPresence)) {
+            location.helloHome.execute(homePhrases)
+          }
+        } else {
+         location.helloHome.execute(homePhrases)
         }
       } else {
-       location.helloHome.execute(homePhrases)
+        def routineMessage = "Already in ${modeIgnore} mode, skipping execution of ${homePhrases} routine."
+        log.debug routineMessage
+        send(routineMessage)
       }
     }
   }
 }
-
 
 def revokeDisabledUsers() {
   def array = []
@@ -1123,6 +1184,7 @@ def grantAccess() {
     runIn(60*2, doPoll)
   }
 }
+
 def revokeAccess() {
   def array = []
   enabledUsersArray().each { user->
@@ -1243,7 +1305,7 @@ def allCodesDone() {
   def codeComplete = true
   theLocks.each { lock->
     i++
-    if (state."lock${i}".error_loop == true) {
+    if (state."lock${lock.id}".error_loop == true) {
       codeComplete = false
     }
   }
@@ -1270,15 +1332,23 @@ private send(msg) {
     sendMessage(msg)
   }
 }
+
 private sendMessage(msg) {
   if (notification) {
     sendPush(msg)
+  } else {
+    sendNotificationEvent(msg)
   }
   if (phone) {
-    sendSms(phone, msg)
-  }
-  if (sendevent) {
-    sendNotificationEvent(msg)
+    if ( phone.indexOf(";") > 1){
+      def phones = phone.split(";")
+      for ( def i = 0; i < phones.size(); i++) {
+        sendSms(phones[i], msg)
+      }
+    }
+    else {
+      sendSms(phone, msg)
+    }
   }
 }
 
@@ -1291,5 +1361,164 @@ def populateDiscovery(codeData, lock) {
   (1..codeSlots).each { slot->
     codes."slot${slot}" = codeData."code${slot}"
   }
-  state."lock${lock.id}".codes = codes
+  atomicState."lock${lock.id}".codes = codes
+}
+
+private String getPIN() {
+  return settings.pin.value.toString().padLeft(4,'0')
+}
+
+def alarmStatusHandler(event) {
+  log.debug "Keypad manager caught alarm status change: "+event.value
+  if (event.value == "off"){
+    keypad?.setDisarmed()
+  }
+  else if (event.value == "away"){
+    keypad?.setArmedAway()
+  }
+  else if (event.value == "stay") {
+    keypad?.setArmedStay()
+  }
+}
+
+private sendSHMEvent(String shmState) {
+  def event = [
+        name:"alarmSystemStatus",
+        value: shmState,
+        displayed: true,
+        description: "System Status is ${shmState}"
+      ]
+  log.debug "test ${event}"
+  sendLocationEvent(event)
+}
+
+private execRoutine(armMode) {
+  if (armMode == 'away') {
+    location.helloHome?.execute(settings.armRoutine)
+  } else if (armMode == 'stay') {
+    location.helloHome?.execute(settings.stayRoutine)
+  } else if (armMode == 'off') {
+    location.helloHome?.execute(settings.disarmRoutine)
+  }
+}
+
+def codeEntryHandler(evt) {
+  //do stuff
+  log.debug "Caught code entry event! ${evt.value.value}"
+
+  def codeEntered = evt.value as String
+
+  def data = evt.data as String
+  def armMode = ''
+  def currentarmMode = keypad.currentValue("armMode")
+  def changedMode = 0
+
+  if (data == '0') {
+    armMode = 'off'
+  }
+  else if (data == '3') {
+    armMode = 'away'
+  }
+  else if (data == '1') {
+    armMode = 'stay'
+  }
+  else if (data == '2') {
+    armMode = 'stay' //Currently no separate night mode for SHM, set to 'stay'
+  } else {
+    log.error "${app.label}: Unexpected arm mode sent by keypad!: "+data
+    return []
+  }
+
+  def i = settings.maxUsers
+  def message = " "
+  while (i > 0) {
+    log.debug "i =" + i
+    def correctCode = settings."userCode${i}" as String
+
+    if (codeEntered == correctCode) {
+
+      log.debug "User Enabled: " + state."userState${i}".enabled
+
+      if (state."userState${i}".enabled == true) {
+        log.debug "Correct PIN entered. Change SHM state to ${armMode}"
+        //log.debug "Delay: ${armDelay}"
+        //log.debug "Data: ${data}"
+        //log.debug "armMode: ${armMode}"
+
+        def unlockUserName = settings."userName${i}"
+
+        if (data == "0") {
+          //log.debug "sendDisarmCommand"
+          runIn(0, "sendDisarmCommand")
+          message = "${evt.displayName} was disarmed by ${unlockUserName}"
+        }
+        else if (data == "1") {
+          //log.debug "sendStayCommand"
+          runIn(armDelay, "sendStayCommand")
+          message = "${evt.displayName} was armed to 'Stay' by ${unlockUserName}"
+        }
+        else if (data == "2") {
+          //log.debug "sendNightCommand"
+          runIn(armDelay, "sendNightCommand")
+          message = "${evt.displayName} was armed to 'Night' by ${unlockUserName}"
+        }
+        else if (data == "3") {
+          //log.debug "sendArmCommand"
+          runIn(armDelay, "sendArmCommand")
+          message = "${evt.displayName} was armed to 'Away' by ${unlockUserName}"
+        }
+
+        if(settings."burnCode${i}") {
+          state."userState${i}".enabled = false
+          message += ".  Now burning code."
+        }
+
+        log.debug "${message}"
+        //log.debug "Initial Usage Count:" + state."userState${i}".usage
+        state."userState${i}".usage = state."userState${i}".usage + 1
+        //log.debug "Final Usage Count:" + state."userState${i}".usage
+        send(message)
+        i = 0
+      } else if (state."userState${i}".enabled == false){
+        log.debug "PIN Disabled"
+        //Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
+        //keypad.sendInvalidKeycodeResponse()
+      }
+    }
+    changedMode = 1
+    i--
+  }
+  if (changedMode == 1 && i == 0) {
+    def errorMsg = "Incorrect Code Entered: ${codeEntered}"
+    if (notifyIncorrectPin) {
+      log.debug "Incorrect PIN"
+      send(errorMsg)
+    }
+    //Could also call acknowledgeArmRequest() with a parameter of 4 to report invalid code. Opportunity to simplify code?
+    keypad.sendInvalidKeycodeResponse()
+  }
+}
+def sendArmCommand() {
+  log.debug "Sending Arm Command."
+  keypad.acknowledgeArmRequest(3)
+  sendSHMEvent("away")
+  execRoutine("away")
+}
+def sendDisarmCommand() {
+  log.debug "Sending Disarm Command."
+  keypad.acknowledgeArmRequest(0)
+  sendSHMEvent("off")
+  execRoutine("off")
+}
+def sendStayCommand() {
+  log.debug "Sending Stay Command."
+  keypad.acknowledgeArmRequest(1)
+  sendSHMEvent("stay")
+  execRoutine("stay")
+}
+def sendNightCommand() {
+  log.debug "Sending Night Command."
+  keypad.acknowledgeArmRequest(2)
+  sendSHMEvent("stay")
+  execRoutine("stay")
 }
