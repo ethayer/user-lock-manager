@@ -539,7 +539,6 @@ def poll() {
 	}
 	if (cmds) {
 		log.debug "poll is sending ${cmds.inspect()}"
-        reportAllCodes(state)
 		cmds
 	} else {
 		// workaround to keep polling from stopping due to lack of activity
