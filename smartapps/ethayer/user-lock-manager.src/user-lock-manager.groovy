@@ -1361,7 +1361,7 @@ def populateDiscovery(codeData, lock) {
   (1..codeSlots).each { slot->
     codes."slot${slot}" = codeData."code${slot}"
   }
-  atomicState."lock${lock.id}".codes = codes
+  state."lock${lock.id}".codes = codes
 }
 
 private String getPIN() {
