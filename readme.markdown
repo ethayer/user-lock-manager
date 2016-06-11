@@ -28,7 +28,7 @@ Welcome to Lock Manager!
 1. *Go to* **[Apps](https://graph.api.smartthings.com/ide/apps)** in IDE
 1. *Click* "New App +"
 1. *Click* "From Code"
-1. *Copy* from **[github](https://raw.githubusercontent.com/ethayer/user-lock-manager/master/user-lock-manager.smartapp.groovy)**
+1. *Copy* from **[github](https://raw.githubusercontent.com/ethayer/user-lock-manager/master/smartapps/ethayer/user-lock-manager.src/user-lock-manager.groovy)**
 1. *Paste* into textarea on SmartThings
 1. *Click* Publish > For Me
 
