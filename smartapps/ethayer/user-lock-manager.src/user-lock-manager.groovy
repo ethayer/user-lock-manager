@@ -3,6 +3,8 @@
  *
  *  Copyright 2015 Erik Thayer
  *  Keypad support added by BLebson
+ *  Door manual unlock notifications and option by DimitriRodis 2016-06-24
+ *
  *
  */
 definition(
@@ -158,6 +160,7 @@ def notificationPage() {
       if (phone != null || notification || sendevent) {
         input(name: "notifyAccess", title: "on User Entry", type: "bool", required: false)
         input(name: "notifyLock", title: "on Lock", type: "bool", required: false)
+        input(name: "notifyUnlock", title: "on Unlock", type: "bool", required: false)
         input(name: "notifyAccessStart", title: "when granting access", type: "bool", required: false)
         input(name: "notifyAccessEnd", title: "when revoking access", type: "bool", required: false)
       }
@@ -530,6 +533,9 @@ def notificationPageDescription() {
   }
   if (settings.notifyLock) {
     parts << "on lock"
+  }
+  if (settings.notifyUnlock) {
+    parts << "on unlock"
   }
   if (settings.notifyAccessStart) {
     parts << "when granting access"
@@ -1103,6 +1109,8 @@ def codeUsed(evt) {
         message = null
       }
     }
+  } else if(evt.value == "unlocked" && settings.notifyUnlock) {
+    message = "${evt.displayName} has been manually unlocked"
   } else if(evt.value == "locked" && settings.notifyLock) {
     message = "${evt.displayName} has been locked"
   }
@@ -1361,7 +1369,7 @@ def populateDiscovery(codeData, lock) {
   (1..codeSlots).each { slot->
     codes."slot${slot}" = codeData."code${slot}"
   }
-  atomicState."lock${lock.id}".codes = codes
+  state."lock${lock.id}".codes = codes
 }
 
 private String getPIN() {
